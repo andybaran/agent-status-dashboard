@@ -1,0 +1,27 @@
+# Git
+.git
+.gitignore
+
+# GitHub
+.github
+
+# Python cache
+__pycache__
+*.py[cod]
+*$py.class
+
+# Data files
+*.csv
+data/
+
+# Documentation (not needed in image)
+README.md
+dashboard-instructions.md
+LICENSE
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
