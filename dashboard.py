@@ -208,6 +208,9 @@ DASHBOARD_HTML = """
       <span class="counter">
         Currently Working: <span class="counter-value" id="workingAgents">0</span>
       </span>
+      <span class="counter">
+        Total Working Time: <span class="counter-value" id="totalWorkingTime">0s</span>
+      </span>
       <span>
         <span id="autoRefreshIndicator" style="background:#2EB67D" class="pulse"></span>
         Auto-refresh: 5s
@@ -269,8 +272,10 @@ DASHBOARD_HTML = """
     function updateCounters(agents) {
       const total = Object.keys(agents).length;
       const working = Object.values(agents).filter(a => a.status === 'working').length;
+      const totalSecs = Object.values(agents).reduce((sum, a) => sum + (a.working_seconds || 0), 0);
       document.getElementById('totalAgents').textContent = total;
       document.getElementById('workingAgents').textContent = working;
+      document.getElementById('totalWorkingTime').textContent = fmtDuration(totalSecs);
     }
 
     function fmtDuration(secs) {
