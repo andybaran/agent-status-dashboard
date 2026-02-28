@@ -175,6 +175,68 @@ The CSV file (`/data/agent_status.csv` in Docker) is the single source of truth:
 - CSV is never reseeded on restart—only new status updates are appended
 - Mount as a volume to persist across container restarts
 
+## FAQ / Troubleshooting
+
+### `PermissionError: [Errno 13] Permission denied` when writing to CSV
+
+The container runs as a non-root user (UID 1000). If your mounted data directory or CSV file is owned by a different user, writes will fail.
+
+**Fix:** Make the data directory and CSV writable before starting the container:
+```bash
+mkdir -p ./data
+chmod 777 ./data
+# If a CSV already exists:
+chmod 666 ./data/agent_status.csv
+```
+
+### `no image found in image index for architecture "arm64"` when pulling
+
+Early builds only included `linux/amd64`. The image now ships multi-platform (`amd64` + `arm64`). Pull the latest tag to get the correct architecture:
+```bash
+docker pull ghcr.io/andybaran/agent-status-dashboard:latest
+```
+
+### Dashboard loads but API POST returns 500
+
+Check the container logs for the root cause:
+```bash
+docker logs agent-dashboard
+```
+
+The most common cause is the CSV permission issue above. Other possibilities:
+- Invalid status value (must be one of: `working`, `waiting`, `completed`, `idle`, `blocked`, `error`)
+- Corrupted CSV file — delete it and restart; agents will re-register on their next POST
+
+### Container starts but no agents appear
+
+Agents self-register — the dashboard starts empty by design. Post a status update to register an agent:
+```bash
+curl -X POST http://localhost:5050/api/update/TestAgent/idle
+```
+
+If you previously had data, make sure you mounted the correct directory containing your `agent_status.csv`:
+```bash
+docker run -d -p 5050:5050 -v /path/to/your/data:/data ghcr.io/andybaran/agent-status-dashboard:latest
+```
+
+### Port 5050 is already in use
+
+Either stop the existing process or run on a different port:
+```bash
+# Find what's using port 5050
+lsof -ti:5050
+
+# Or run the dashboard on a different port
+docker run -d -p 8080:5050 ghcr.io/andybaran/agent-status-dashboard:latest
+```
+
+### Agent names with special characters
+
+URL-encode agent names when calling the API. Spaces become `%20`:
+```bash
+curl -X POST http://localhost:5050/api/update/My%20Agent%20Name/working
+```
+
 ## License
 
 MIT License - Copyright 2026 Andy Baran
