@@ -6,6 +6,10 @@ A lightweight Flask web application that displays real-time agent status
 from a CSV file. Agents register dynamically by posting status updates.
 The dashboard auto-refreshes every 5 seconds.
 
+Styled to be compliant with HashiCorp branding and the Helios Design System
+(HDS) design tokens — colors, typography, spacing, elevation, and component
+patterns mirror HCP Terraform UI conventions.
+
 Configuration via environment variables:
     DASHBOARD_PORT  - Port to run on (default: 5050)
     CSV_PATH        - Path to status CSV file (default: ./agent_status.csv)
@@ -33,14 +37,38 @@ DASHBOARD_TITLE = os.environ.get("DASHBOARD_TITLE", "Agent Status Dashboard")
 
 VALID_STATUSES = {"working", "waiting", "completed", "idle", "blocked", "error"}
 
+# HDS-aligned status colors
 STATUS_COLORS = {
-    "working":   "#2EB67D",  # green
-    "waiting":   "#ECB22E",  # yellow
-    "completed": "#36C5F0",  # blue
-    "idle":      "#888888",  # gray
-    "blocked":   "#E01E5A",  # red
-    "error":     "#E01E5A",
+    "working":   "#008a22",  # HDS foreground-success
+    "waiting":   "#b35900",  # HDS foreground-warning
+    "completed": "#0c56e9",  # HDS foreground-action
+    "idle":      "#656a76",  # HDS foreground-faint
+    "blocked":   "#c00005",  # HDS foreground-critical
+    "error":     "#c00005",  # HDS foreground-critical
 }
+
+STATUS_SURFACES = {
+    "working":   "#e4f7e6",  # HDS surface-success
+    "waiting":   "#fff3d6",  # HDS surface-warning
+    "completed": "#e1ecff",  # HDS surface-highlight
+    "idle":      "#f5f5f6",  # HDS surface-faint
+    "blocked":   "#ffe0e0",  # HDS surface-critical
+    "error":     "#ffe0e0",  # HDS surface-critical
+}
+
+STATUS_BORDERS = {
+    "working":   "#008a22",  # HDS border-success
+    "waiting":   "#b35900",  # HDS border-warning
+    "completed": "#0c56e9",  # HDS border-action
+    "idle":      "#d2d5db",  # HDS border-primary
+    "blocked":   "#c00005",  # HDS border-critical
+    "error":     "#c00005",  # HDS border-critical
+}
+
+# HashiCorp logo SVG (simplified mark)
+HASHICORP_LOGO_SVG = '''<svg width="28" height="28" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M21.625 0L14.375 4.18v11.773l-7.25-4.178V4.18L0 8.358v19.284L7.125 31.82V20.047l7.25 4.18v11.773L21.625 31.82V20.047L28.75 24.225V13.953L36 9.775 21.625 0z" fill="white"/>
+</svg>'''
 
 DASHBOARD_HTML = """
 <!DOCTYPE html>
@@ -50,223 +78,407 @@ DASHBOARD_HTML = """
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }}</title>
   <style>
+    /* ── HDS Design Token Mapping ──────────────────────────────── */
     :root {
-      --bg-primary: #1a1a2e;
-      --bg-secondary: #16213e;
-      --bg-card: #0f3460;
-      --text-primary: #e4e4e4;
-      --text-secondary: #a0a0a0;
-      --border: #233554;
-      --accent: #00d2ff;
+      /* Foreground (text) — HDS semantic colors */
+      --hds-foreground-strong:   #0c0c0e;
+      --hds-foreground-primary:  #3b3d45;
+      --hds-foreground-faint:    #656a76;
+      --hds-foreground-disabled: #8c909c;
+      --hds-foreground-action:   #0c56e9;
+      --hds-foreground-success:  #008a22;
+      --hds-foreground-warning:  #b35900;
+      --hds-foreground-critical: #c00005;
+
+      /* Surface (background) */
+      --hds-surface-primary:     #ffffff;
+      --hds-surface-faint:       #f5f5f6;
+      --hds-surface-strong:      #ebebed;
+      --hds-surface-interactive-hover: #f9fafb;
+
+      /* Border */
+      --hds-border-primary:      #d2d5db;
+      --hds-border-faint:        #ebebed;
+      --hds-border-strong:       #8c909c;
+
+      /* Brand */
+      --hds-brand-hashicorp:     #000000;
+
+      /* App header — matches HCP dark header */
+      --hds-header-bg:           #1d1f30;
+      --hds-header-fg:           #ffffff;
+
+      /* Typography — HDS system font stacks */
+      --hds-font-text: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      --hds-font-code: ui-monospace, SFMono-Regular, Menlo, Consolas, Monaco, monospace;
+
+      /* Spacing — HDS scale */
+      --hds-space-100: 8px;
+      --hds-space-150: 12px;
+      --hds-space-200: 16px;
+      --hds-space-300: 24px;
+      --hds-space-400: 32px;
+      --hds-space-500: 48px;
+
+      /* Border radius — HDS scale */
+      --hds-radius-small:  5px;
+      --hds-radius-medium: 6px;
+      --hds-radius-large:  8px;
+
+      /* Elevation / Shadows — HDS scale */
+      --hds-elevation-low:  0 1px 2px 0 rgba(0,0,0,0.06);
+      --hds-elevation-mid:  0 2px 4px 0 rgba(0,0,0,0.06), 0 4px 12px -2px rgba(0,0,0,0.08);
+      --hds-elevation-high: 0 4px 6px 0 rgba(0,0,0,0.06), 0 12px 20px -4px rgba(0,0,0,0.10);
     }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ── Reset ─────────────────────────────────────────────────── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
-      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-      background: var(--bg-primary);
-      color: var(--text-primary);
+      font-family: var(--hds-font-text);
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+      color: var(--hds-foreground-primary);
+      background: var(--hds-surface-faint);
       min-height: 100vh;
-      padding: 20px;
     }
-    header {
+
+    /* ── App Header — mirrors HCP Terraform top bar ────────────── */
+    .app-header {
+      height: 60px;
+      background: var(--hds-header-bg);
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      margin-bottom: 24px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--border);
-      flex-wrap: wrap;
-      gap: 12px;
+      padding: 0 var(--hds-space-300);
+      gap: var(--hds-space-200);
+      color: var(--hds-header-fg);
+      box-shadow: var(--hds-elevation-low);
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
-    h1 {
-      font-size: 1.5rem;
+    .app-header .logo { display: flex; align-items: center; gap: var(--hds-space-100); }
+    .app-header .logo-divider {
+      width: 1px; height: 24px;
+      background: rgba(255,255,255,0.2);
+      margin: 0 var(--hds-space-100);
+    }
+    .app-header h1 {
+      font-size: 1rem;
       font-weight: 600;
-      background: linear-gradient(90deg, #00d2ff, #7b2ff7);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: var(--hds-header-fg);
+      letter-spacing: -0.01em;
     }
-    .meta {
+    .app-header .header-right {
+      margin-left: auto;
       display: flex;
-      gap: 16px;
       align-items: center;
-      font-size: 0.85rem;
-      color: var(--text-secondary);
+      gap: var(--hds-space-200);
+      font-size: 0.8125rem;
+      color: rgba(255,255,255,0.7);
+    }
+    .app-header .header-right .refresh-indicator {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #2EB67D;
+      display: inline-block;
+    }
+    .pulse { animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* ── Page Content ──────────────────────────────────────────── */
+    .page-content { padding: var(--hds-space-300); max-width: 1440px; margin: 0 auto; }
+
+    /* ── Stats Bar — HDS counter badges ────────────────────────── */
+    .stats-bar {
+      display: flex;
+      gap: var(--hds-space-200);
+      margin-bottom: var(--hds-space-300);
       flex-wrap: wrap;
+      align-items: center;
     }
-    .meta span { display: flex; align-items: center; gap: 4px; }
-    .counter {
-      background: var(--bg-card);
-      padding: 4px 12px;
-      border-radius: 4px;
-      border: 1px solid var(--border);
+    .stat-card {
+      background: var(--hds-surface-primary);
+      border: 1px solid var(--hds-border-primary);
+      border-radius: var(--hds-radius-medium);
+      padding: var(--hds-space-150) var(--hds-space-200);
+      box-shadow: var(--hds-elevation-low);
+      display: flex;
+      flex-direction: column;
+      min-width: 140px;
     }
-    .counter-value {
-      color: var(--accent);
-      font-weight: bold;
+    .stat-card .stat-label {
+      font-size: 0.75rem;
+      color: var(--hds-foreground-faint);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 2px;
     }
-    button {
-      background: var(--bg-card);
-      color: var(--accent);
-      border: 1px solid var(--accent);
-      padding: 6px 16px;
-      border-radius: 4px;
+    .stat-card .stat-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--hds-foreground-strong);
+    }
+    .stat-card .stat-value.accent { color: var(--hds-foreground-action); }
+
+    .refresh-btn {
+      margin-left: auto;
+      background: var(--hds-surface-primary);
+      color: var(--hds-foreground-action);
+      border: 1px solid var(--hds-border-primary);
+      padding: var(--hds-space-100) var(--hds-space-200);
+      border-radius: var(--hds-radius-small);
       cursor: pointer;
-      font-family: inherit;
-      font-size: 0.85rem;
-      transition: all 0.2s;
+      font-family: var(--hds-font-text);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      transition: all 0.15s;
+      display: flex; align-items: center; gap: 6px;
     }
-    button:hover { background: var(--accent); color: var(--bg-primary); }
+    .refresh-btn:hover {
+      background: var(--hds-surface-faint);
+      border-color: var(--hds-foreground-action);
+    }
+    .refresh-btn:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 1px #0c56e9, 0 0 0 3px #5990ff;
+    }
+
+    /* ── Agent Cards Grid — HDS Card pattern ───────────────────── */
+    .section-heading {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--hds-foreground-strong);
+      margin-bottom: var(--hds-space-200);
+      display: flex;
+      align-items: center;
+      gap: var(--hds-space-100);
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 16px;
-      margin-bottom: 32px;
+      gap: var(--hds-space-200);
+      margin-bottom: var(--hds-space-400);
     }
     .card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-      transition: border-color 0.3s;
+      background: var(--hds-surface-primary);
+      border: 1px solid var(--hds-border-primary);
+      border-radius: var(--hds-radius-large);
+      padding: var(--hds-space-200);
+      box-shadow: var(--hds-elevation-low);
+      transition: box-shadow 0.15s, border-color 0.15s;
+      border-left: 3px solid var(--hds-border-primary);
     }
-    .card:hover { border-color: var(--accent); }
+    .card:hover {
+      box-shadow: var(--hds-elevation-mid);
+      border-color: var(--hds-border-strong);
+    }
     .card-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
+      margin-bottom: var(--hds-space-150);
     }
-    .agent-name { font-weight: 600; font-size: 0.95rem; }
+    .agent-name {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--hds-foreground-strong);
+    }
+
+    /* ── HDS Badge-style status pill ───────────────────────────── */
     .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
       padding: 2px 10px;
-      border-radius: 12px;
+      border-radius: 4px;
       font-size: 0.75rem;
       font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      text-transform: capitalize;
+      letter-spacing: 0.02em;
+      border: 1px solid transparent;
     }
-    .card-body {
-      font-size: 0.8rem;
-      color: var(--text-secondary);
-    }
-    .card-body .timestamp { margin-top: 8px; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.85rem;
-      margin-top: 24px;
-    }
-    th, td {
-      padding: 10px 14px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-    th {
-      background: var(--bg-secondary);
-      color: var(--accent);
-      font-weight: 600;
-      position: sticky;
-      top: 0;
-    }
-    tr:hover { background: var(--bg-secondary); }
-    .log-section { margin-top: 32px; }
-    .log-section h2 {
-      font-size: 1.1rem;
-      margin-bottom: 12px;
-      color: var(--accent);
-    }
-    .log-container {
-      max-height: 400px;
-      overflow-y: auto;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-    }
-    #autoRefreshIndicator {
-      width: 8px; height: 8px;
+    .status-badge::before {
+      content: '';
+      width: 6px; height: 6px;
       border-radius: 50%;
       display: inline-block;
     }
-    .pulse { animation: pulse 1s infinite; }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
+    .card-meta {
+      font-size: 0.8125rem;
+      color: var(--hds-foreground-faint);
+      display: flex; flex-direction: column; gap: 4px;
     }
+    .card-meta strong { font-weight: 500; color: var(--hds-foreground-primary); }
+
+    /* ── Activity Log Table — HDS Table pattern ────────────────── */
+    .log-section {
+      margin-top: var(--hds-space-300);
+    }
+    .log-container {
+      background: var(--hds-surface-primary);
+      border: 1px solid var(--hds-border-primary);
+      border-radius: var(--hds-radius-large);
+      box-shadow: var(--hds-elevation-low);
+      overflow: hidden;
+    }
+    .log-container .table-scroll {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+    }
+    th {
+      padding: 10px var(--hds-space-200);
+      text-align: left;
+      background: var(--hds-surface-faint);
+      color: var(--hds-foreground-strong);
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--hds-border-primary);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    td {
+      padding: 8px var(--hds-space-200);
+      border-bottom: 1px solid var(--hds-border-faint);
+      color: var(--hds-foreground-primary);
+    }
+    tr:hover td { background: var(--hds-surface-interactive-hover); }
+    td.ts { font-family: var(--hds-font-code); font-size: 0.75rem; color: var(--hds-foreground-faint); }
+
+    /* ── Chart Section ─────────────────────────────────────────── */
+    .chart-section { margin-top: var(--hds-space-300); }
+    .chart-container {
+      background: var(--hds-surface-primary);
+      border: 1px solid var(--hds-border-primary);
+      border-radius: var(--hds-radius-large);
+      box-shadow: var(--hds-elevation-low);
+      padding: var(--hds-space-200);
+    }
+
     .no-agents {
       text-align: center;
-      padding: 40px;
-      color: var(--text-secondary);
-      font-size: 1rem;
+      padding: var(--hds-space-500);
+      color: var(--hds-foreground-faint);
+      font-size: 0.875rem;
+    }
+
+    .last-update-text {
+      font-size: 0.75rem;
+      color: var(--hds-foreground-faint);
+      margin-top: var(--hds-space-200);
+      text-align: right;
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>&#x1F916; {{ title }}</h1>
-    <div class="meta">
-      <span class="counter">
-        Total Agents: <span class="counter-value" id="totalAgents">0</span>
-      </span>
-      <span class="counter">
-        Currently Working: <span class="counter-value" id="workingAgents">0</span>
-      </span>
-      <span class="counter">
-        Total Working Time: <span class="counter-value" id="totalWorkingTime">0s</span>
-      </span>
-      <span>
-        <span id="autoRefreshIndicator" style="background:#2EB67D" class="pulse"></span>
-        Auto-refresh: 5s
-      </span>
-      <span id="lastUpdate">--</span>
-      <button onclick="fetchData()">&#x21bb; Refresh Now</button>
+
+  <!-- ── App Header — HCP Terraform-style top bar ─────────────── -->
+  <div class="app-header">
+    <div class="logo">
+      """ + HASHICORP_LOGO_SVG + """
+      <div class="logo-divider"></div>
+      <h1>{{ title }}</h1>
     </div>
-  </header>
-
-  <div class="grid" id="agentCards"></div>
-
-  <div class="log-section">
-    <h2>Activity Log (last 100 entries)</h2>
-    <div class="log-container">
-      <table>
-        <thead><tr><th>Timestamp</th><th>Agent</th><th>Status</th></tr></thead>
-        <tbody id="logBody"></tbody>
-      </table>
+    <div class="header-right">
+      <span><span class="refresh-indicator pulse"></span>&nbsp;Live</span>
+      <span id="lastUpdate">--</span>
     </div>
   </div>
 
-  <div class="log-section" style="margin-top:32px">
-    <h2>&#x1F4C8; Concurrent Working Agents</h2>
-    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:16px;">
-      <canvas id="concurrencyChart" width="900" height="260" style="width:100%;height:260px;"></canvas>
+  <!-- ── Page Content ──────────────────────────────────────────── -->
+  <div class="page-content">
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+      <div class="stat-card">
+        <span class="stat-label">Total Agents</span>
+        <span class="stat-value" id="totalAgents">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Currently Working</span>
+        <span class="stat-value accent" id="workingAgents">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Total Working Time</span>
+        <span class="stat-value" id="totalWorkingTime">0s</span>
+      </div>
+      <button class="refresh-btn" onclick="fetchData()">&#x21bb; Refresh</button>
     </div>
+
+    <!-- Agent Cards -->
+    <div class="section-heading">Agents</div>
+    <div class="grid" id="agentCards"></div>
+
+    <!-- Concurrency Chart -->
+    <div class="chart-section">
+      <div class="section-heading">Concurrent Working Agents</div>
+      <div class="chart-container">
+        <canvas id="concurrencyChart" width="900" height="240" style="width:100%;height:240px;"></canvas>
+      </div>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="log-section">
+      <div class="section-heading">Activity Log</div>
+      <div class="log-container">
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Timestamp</th><th>Agent</th><th>Status</th></tr></thead>
+            <tbody id="logBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="last-update-text" id="lastUpdateBottom"></div>
   </div>
 
   <script>
+    /* ── HDS-aligned status colors ──────────────────────────── */
     const STATUS_COLORS = {
-      working:   '#2EB67D',
-      waiting:   '#ECB22E',
-      completed: '#36C5F0',
-      idle:      '#888888',
-      blocked:   '#E01E5A',
-      error:     '#E01E5A',
+      working:   '#008a22',
+      waiting:   '#b35900',
+      completed: '#0c56e9',
+      idle:      '#656a76',
+      blocked:   '#c00005',
+      error:     '#c00005',
+    };
+    const STATUS_SURFACES = {
+      working:   '#e4f7e6',
+      waiting:   '#fff3d6',
+      completed: '#e1ecff',
+      idle:      '#f5f5f6',
+      blocked:   '#ffe0e0',
+      error:     '#ffe0e0',
     };
 
-    function statusColor(s) {
-      return STATUS_COLORS[(s || '').toLowerCase()] || '#888888';
-    }
+    function statusColor(s)   { return STATUS_COLORS[(s||'').toLowerCase()]   || '#656a76'; }
+    function statusSurface(s) { return STATUS_SURFACES[(s||'').toLowerCase()] || '#f5f5f6'; }
 
     function fetchData() {
       Promise.all([
         fetch('/api/status').then(r => r.json()),
         fetch('/api/concurrency').then(r => r.json())
       ])
-        .then(([statusData, concData]) => {
-          renderCards(statusData.current);
-          renderLog(statusData.log);
-          renderConcurrencyChart(concData);
-          updateCounters(statusData.current);
-          document.getElementById('lastUpdate').textContent =
-            'Updated: ' + new Date().toLocaleTimeString();
-        })
-        .catch(err => console.error('Fetch error:', err));
+      .then(([statusData, concData]) => {
+        renderCards(statusData.current);
+        renderLog(statusData.log);
+        renderConcurrencyChart(concData);
+        updateCounters(statusData.current);
+        const ts = new Date().toLocaleTimeString();
+        document.getElementById('lastUpdate').textContent = ts;
+        document.getElementById('lastUpdateBottom').textContent = 'Last refreshed: ' + ts;
+      })
+      .catch(err => console.error('Fetch error:', err));
     }
 
     function updateCounters(agents) {
@@ -283,7 +495,7 @@ DASHBOARD_HTML = """
       const h = Math.floor(secs / 3600);
       const m = Math.floor((secs % 3600) / 60);
       const s = secs % 60;
-      if (h > 0) return h + 'h ' + m + 'm ' + s + 's';
+      if (h > 0) return h + 'h ' + m + 'm';
       if (m > 0) return m + 'm ' + s + 's';
       return s + 's';
     }
@@ -296,19 +508,19 @@ DASHBOARD_HTML = """
         grid.innerHTML = '<div class="no-agents">No agents registered yet. Agents will appear when they post status updates.</div>';
         return;
       }
-      // Sort by name for consistent ordering
       entries.sort((a, b) => a[0].localeCompare(b[0]));
       for (const [name, info] of entries) {
-        const color = statusColor(info.status);
+        const fg = statusColor(info.status);
+        const bg = statusSurface(info.status);
         grid.innerHTML += `
-          <div class="card" style="border-left: 3px solid ${color}">
+          <div class="card" style="border-left-color:${fg}">
             <div class="card-header">
               <span class="agent-name">${name}</span>
-              <span class="status-badge" style="background:${color}22;color:${color};border:1px solid ${color}">${info.status || 'idle'}</span>
+              <span class="status-badge" style="background:${bg};color:${fg};border-color:${fg}"><span></span>${info.status || 'idle'}</span>
             </div>
-            <div class="card-body">
-              <div class="timestamp">Last update: ${info.timestamp || 'never'}</div>
-              <div class="timestamp">Total working time: ${fmtDuration(info.working_seconds)}</div>
+            <div class="card-meta">
+              <div>Last update: <strong>${info.timestamp || 'never'}</strong></div>
+              <div>Total working time: <strong>${fmtDuration(info.working_seconds)}</strong></div>
             </div>
           </div>`;
       }
@@ -318,12 +530,17 @@ DASHBOARD_HTML = """
       const body = document.getElementById('logBody');
       body.innerHTML = '';
       if (rows.length === 0) {
-        body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-secondary)">No activity yet</td></tr>';
+        body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--hds-foreground-faint)">No activity yet</td></tr>';
         return;
       }
       rows.forEach(r => {
-        const color = statusColor(r.status);
-        body.innerHTML += `<tr><td>${r.timestamp}</td><td>${r.agent_name}</td><td style="color:${color}">${r.status}</td></tr>`;
+        const fg = statusColor(r.status);
+        const bg = statusSurface(r.status);
+        body.innerHTML += `<tr>
+          <td class="ts">${r.timestamp}</td>
+          <td>${r.agent_name}</td>
+          <td><span class="status-badge" style="background:${bg};color:${fg};border-color:${fg}">${r.status}</span></td>
+        </tr>`;
       });
     }
 
@@ -342,82 +559,81 @@ DASHBOARD_HTML = """
       const tMin = data.t_min || 0;
       const tMax = data.t_max || 1;
 
-      const pad = {top: 20, right: 20, bottom: 40, left: 50};
+      const pad = {top: 24, right: 24, bottom: 36, left: 48};
       const plotW = W - pad.left - pad.right;
       const plotH = H - pad.top - pad.bottom;
 
       ctx.clearRect(0, 0, W, H);
 
-      // Grid lines
-      ctx.strokeStyle = '#233554';
-      ctx.lineWidth = 0.5;
+      /* Grid lines — HDS border-faint */
+      ctx.strokeStyle = '#ebebed';
+      ctx.lineWidth = 1;
       for (let i = 0; i <= maxAgents; i++) {
         const y = pad.top + plotH - (i / maxAgents) * plotH;
         ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + plotW, y); ctx.stroke();
       }
 
-      // Y-axis labels
-      ctx.fillStyle = '#a0a0a0';
-      ctx.font = '11px SF Mono, Fira Code, monospace';
+      /* Y-axis labels */
+      ctx.fillStyle = '#656a76';
+      ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
       for (let i = 0; i <= maxAgents; i += Math.max(1, Math.floor(maxAgents / 5))) {
         const y = pad.top + plotH - (i / maxAgents) * plotH;
-        ctx.fillText(i, pad.left - 8, y);
+        ctx.fillText(i, pad.left - 10, y);
       }
 
-      // Y-axis title
+      /* Y-axis title */
       ctx.save();
       ctx.translate(14, pad.top + plotH / 2);
       ctx.rotate(-Math.PI / 2);
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#00d2ff';
-      ctx.font = '12px SF Mono, Fira Code, monospace';
+      ctx.fillStyle = '#3b3d45';
+      ctx.font = '500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       ctx.fillText('Agents', 0, 0);
       ctx.restore();
 
-      // X-axis labels (time)
+      /* X-axis labels */
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillStyle = '#a0a0a0';
-      ctx.font = '11px SF Mono, Fira Code, monospace';
+      ctx.fillStyle = '#656a76';
+      ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       const span = tMax - tMin;
       const tickCount = Math.min(8, Math.max(points.length, 1));
       for (let i = 0; i <= tickCount; i++) {
         const t = tMin + (i / tickCount) * span;
         const x = pad.left + (i / tickCount) * plotW;
         const d = new Date(t * 1000);
-        const lbl = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
-        ctx.fillText(lbl, x, pad.top + plotH + 6);
-        ctx.strokeStyle = '#233554'; ctx.lineWidth = 0.3;
+        const lbl = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        ctx.fillText(lbl, x, pad.top + plotH + 8);
+        ctx.strokeStyle = '#ebebed'; ctx.lineWidth = 0.5;
         ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + plotH); ctx.stroke();
       }
 
       if (points.length < 2) {
-        ctx.fillStyle = '#a0a0a0';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = '14px SF Mono, Fira Code, monospace';
-        ctx.fillText('Waiting for data…', W / 2, H / 2);
+        ctx.fillStyle = '#656a76';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        ctx.fillText('Waiting for data\u2026', W / 2, H / 2);
         return;
       }
 
-      // Now-line
+      /* Now-line — HDS warning colour */
       const nowFrac = (data.t_now - tMin) / span;
       const nowPx = pad.left + nowFrac * plotW;
       ctx.save();
       ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = '#ECB22E';
+      ctx.strokeStyle = '#b35900';
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(nowPx, pad.top); ctx.lineTo(nowPx, pad.top + plotH); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = '#ECB22E';
-      ctx.font = '10px SF Mono, Fira Code, monospace';
+      ctx.fillStyle = '#b35900';
+      ctx.font = '500 10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('now', nowPx, pad.top - 6);
+      ctx.fillText('now', nowPx, pad.top - 10);
       ctx.restore();
 
-      // Stepped area fill
+      /* Stepped area fill — HDS action colour (blue) */
       ctx.beginPath();
       let firstX = pad.left + ((points[0].t - tMin) / span) * plotW;
       let firstY = pad.top + plotH - (points[0].count / maxAgents) * plotH;
@@ -427,23 +643,22 @@ DASHBOARD_HTML = """
         const px = pad.left + ((points[i].t - tMin) / span) * plotW;
         const py = pad.top + plotH - (points[i].count / maxAgents) * plotH;
         const prevY = pad.top + plotH - (points[i - 1].count / maxAgents) * plotH;
-        ctx.lineTo(px, prevY);  // horizontal step
-        ctx.lineTo(px, py);     // vertical step
+        ctx.lineTo(px, prevY);
+        ctx.lineTo(px, py);
       }
       const lastX = pad.left + ((points[points.length - 1].t - tMin) / span) * plotW;
       const lastY = pad.top + plotH - (points[points.length - 1].count / maxAgents) * plotH;
-      // extend to now
       ctx.lineTo(nowPx, lastY);
       ctx.lineTo(nowPx, pad.top + plotH);
       ctx.closePath();
 
       const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + plotH);
-      grad.addColorStop(0, 'rgba(0, 210, 255, 0.35)');
-      grad.addColorStop(1, 'rgba(0, 210, 255, 0.03)');
+      grad.addColorStop(0, 'rgba(12, 86, 233, 0.18)');
+      grad.addColorStop(1, 'rgba(12, 86, 233, 0.02)');
       ctx.fillStyle = grad;
       ctx.fill();
 
-      // Stepped line
+      /* Stepped line */
       ctx.beginPath();
       ctx.moveTo(firstX, firstY);
       for (let i = 1; i < points.length; i++) {
@@ -454,17 +669,17 @@ DASHBOARD_HTML = """
         ctx.lineTo(px, py);
       }
       ctx.lineTo(nowPx, lastY);
-      ctx.strokeStyle = '#00d2ff';
+      ctx.strokeStyle = '#0c56e9';
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // Dot at current value
+      /* Dot at current value */
       ctx.beginPath();
       ctx.arc(nowPx, lastY, 4, 0, Math.PI * 2);
-      ctx.fillStyle = '#00d2ff';
+      ctx.fillStyle = '#0c56e9';
       ctx.fill();
-      ctx.fillStyle = '#e4e4e4';
-      ctx.font = 'bold 12px SF Mono, Fira Code, monospace';
+      ctx.fillStyle = '#3b3d45';
+      ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       ctx.textAlign = 'left';
       ctx.fillText(points[points.length - 1].count, nowPx + 8, lastY + 4);
     }
