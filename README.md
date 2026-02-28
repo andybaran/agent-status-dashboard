@@ -2,6 +2,8 @@
 
 A lightweight, real-time dashboard for monitoring AI agent status in orchestration workflows. Agents self-register dynamically by posting status updates—no pre-configuration required.
 
+> **For AI agents / orchestrators:** See [`dashboard-instructions.md`](dashboard-instructions.md) for a concise, machine-readable API reference designed to be included in agent system prompts or tool definitions.
+
 ## Features
 
 - **Dynamic Agent Registration** — Agents appear automatically when they post their first status update
