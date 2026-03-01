@@ -108,6 +108,15 @@ DASHBOARD_HTML = """
       --hds-header-bg:           #1d1f30;
       --hds-header-fg:           #ffffff;
 
+      /* Chart — theme-aware canvas colors */
+      --hds-chart-grid:          #ebebed;
+      --hds-chart-label:         #656a76;
+      --hds-chart-title:         #3b3d45;
+      --hds-chart-line:          #0c56e9;
+      --hds-chart-fill-start:    rgba(12, 86, 233, 0.18);
+      --hds-chart-fill-end:      rgba(12, 86, 233, 0.02);
+      --hds-chart-now:           #b35900;
+
       /* Typography — HDS system font stacks */
       --hds-font-text: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
       --hds-font-code: ui-monospace, SFMono-Regular, Menlo, Consolas, Monaco, monospace;
@@ -129,6 +138,44 @@ DASHBOARD_HTML = """
       --hds-elevation-low:  0 1px 2px 0 rgba(0,0,0,0.06);
       --hds-elevation-mid:  0 2px 4px 0 rgba(0,0,0,0.06), 0 4px 12px -2px rgba(0,0,0,0.08);
       --hds-elevation-high: 0 4px 6px 0 rgba(0,0,0,0.06), 0 12px 20px -4px rgba(0,0,0,0.10);
+    }
+
+    /* ── Dark Theme — HDS dark palette ──────────────────────────── */
+    [data-theme="dark"] {
+      --hds-foreground-strong:   #f0f0f2;
+      --hds-foreground-primary:  #c2c5cc;
+      --hds-foreground-faint:    #8c909c;
+      --hds-foreground-disabled: #656a76;
+      --hds-foreground-action:   #5990ff;
+      --hds-foreground-success:  #2EB67D;
+      --hds-foreground-warning:  #ecb22e;
+      --hds-foreground-critical: #f47174;
+
+      --hds-surface-primary:     #1a1c2b;
+      --hds-surface-faint:       #12131f;
+      --hds-surface-strong:      #252739;
+      --hds-surface-interactive-hover: #1f2133;
+
+      --hds-border-primary:      #363850;
+      --hds-border-faint:        #2a2c40;
+      --hds-border-strong:       #4a4d66;
+
+      --hds-brand-hashicorp:     #ffffff;
+
+      --hds-header-bg:           #0e0f1a;
+      --hds-header-fg:           #f0f0f2;
+
+      --hds-chart-grid:          #2a2c40;
+      --hds-chart-label:         #8c909c;
+      --hds-chart-title:         #c2c5cc;
+      --hds-chart-line:          #5990ff;
+      --hds-chart-fill-start:    rgba(89, 144, 255, 0.22);
+      --hds-chart-fill-end:      rgba(89, 144, 255, 0.03);
+      --hds-chart-now:           #ecb22e;
+
+      --hds-elevation-low:  0 1px 2px 0 rgba(0,0,0,0.3);
+      --hds-elevation-mid:  0 2px 4px 0 rgba(0,0,0,0.3), 0 4px 12px -2px rgba(0,0,0,0.4);
+      --hds-elevation-high: 0 4px 6px 0 rgba(0,0,0,0.3), 0 12px 20px -4px rgba(0,0,0,0.5);
     }
 
     /* ── Reset ─────────────────────────────────────────────────── */
@@ -185,6 +232,37 @@ DASHBOARD_HTML = """
     }
     .pulse { animation: pulse 2s ease-in-out infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* ── Theme Toggle — HDS-style icon button ────────────────── */
+    .theme-toggle {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: var(--hds-radius-small);
+      color: rgba(255,255,255,0.7);
+      cursor: pointer;
+      padding: 6px 8px;
+      font-size: 1rem;
+      line-height: 1;
+      transition: background 0.15s, border-color 0.15s;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .theme-toggle:hover {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.35);
+      color: #ffffff;
+    }
+    .theme-toggle:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(89, 144, 255, 0.5);
+    }
+    .theme-toggle .icon-sun,
+    .theme-toggle .icon-moon,
+    .theme-toggle .icon-auto { display: none; }
+    [data-theme="light"] .theme-toggle .icon-sun { display: inline; }
+    [data-theme="dark"] .theme-toggle .icon-moon { display: inline; }
+    .theme-toggle .icon-auto { display: inline; }
+    [data-theme="light"] .theme-toggle .icon-auto,
+    [data-theme="dark"] .theme-toggle .icon-auto { display: none; }
 
     /* ── Page Content ──────────────────────────────────────────── */
     .page-content { padding: var(--hds-space-300); max-width: 1440px; margin: 0 auto; }
@@ -378,6 +456,18 @@ DASHBOARD_HTML = """
       text-align: right;
     }
   </style>
+  <script>
+    /* ── Theme Init (runs before render to prevent flash) ─── */
+    (function() {
+      var pref = localStorage.getItem('hds-theme') || 'system';
+      function resolve(p) {
+        if (p === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        return p;
+      }
+      document.documentElement.setAttribute('data-theme', resolve(pref));
+      window.__hdsPref = pref;
+    })();
+  </script>
 </head>
 <body>
 
@@ -391,6 +481,11 @@ DASHBOARD_HTML = """
     <div class="header-right">
       <span><span class="refresh-indicator pulse"></span>&nbsp;Live</span>
       <span id="lastUpdate">--</span>
+      <button class="theme-toggle" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme">
+        <span class="icon-sun">&#x2600;&#xFE0F;</span>
+        <span class="icon-moon">&#x1F319;</span>
+        <span class="icon-auto">&#x1F5A5;&#xFE0F;</span>
+      </button>
     </div>
   </div>
 
@@ -447,8 +542,29 @@ DASHBOARD_HTML = """
   </div>
 
   <script>
-    /* ── HDS-aligned status colors ──────────────────────────── */
-    const STATUS_COLORS = {
+    /* ── Theme Toggle ─────────────────────────────────────── */
+    function resolveTheme(pref) {
+      if (pref === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      return pref;
+    }
+    function applyTheme(pref) {
+      document.documentElement.setAttribute('data-theme', resolveTheme(pref));
+      localStorage.setItem('hds-theme', pref);
+      window.__hdsPref = pref;
+    }
+    function cycleTheme() {
+      var order = ['light', 'dark', 'system'];
+      var idx = order.indexOf(window.__hdsPref || 'system');
+      applyTheme(order[(idx + 1) % 3]);
+      if (typeof renderConcurrencyChart === 'function' && window.__lastConcData) renderConcurrencyChart(window.__lastConcData);
+    }
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+      if ((window.__hdsPref || 'system') === 'system') applyTheme('system');
+    });
+    function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
+
+    /* ── HDS-aligned status colors (theme-aware) ──────────── */
+    const STATUS_COLORS_LIGHT = {
       working:   '#008a22',
       waiting:   '#b35900',
       completed: '#0c56e9',
@@ -456,7 +572,15 @@ DASHBOARD_HTML = """
       blocked:   '#c00005',
       error:     '#c00005',
     };
-    const STATUS_SURFACES = {
+    const STATUS_COLORS_DARK = {
+      working:   '#2EB67D',
+      waiting:   '#ecb22e',
+      completed: '#5990ff',
+      idle:      '#8c909c',
+      blocked:   '#f47174',
+      error:     '#f47174',
+    };
+    const STATUS_SURFACES_LIGHT = {
       working:   '#e4f7e6',
       waiting:   '#fff3d6',
       completed: '#e1ecff',
@@ -464,9 +588,17 @@ DASHBOARD_HTML = """
       blocked:   '#ffe0e0',
       error:     '#ffe0e0',
     };
+    const STATUS_SURFACES_DARK = {
+      working:   'rgba(46,182,125,0.15)',
+      waiting:   'rgba(236,178,46,0.15)',
+      completed: 'rgba(89,144,255,0.15)',
+      idle:      'rgba(140,144,156,0.10)',
+      blocked:   'rgba(244,113,116,0.15)',
+      error:     'rgba(244,113,116,0.15)',
+    };
 
-    function statusColor(s)   { return STATUS_COLORS[(s||'').toLowerCase()]   || '#656a76'; }
-    function statusSurface(s) { return STATUS_SURFACES[(s||'').toLowerCase()] || '#f5f5f6'; }
+    function statusColor(s)   { var c = isDark() ? STATUS_COLORS_DARK : STATUS_COLORS_LIGHT; return c[(s||'').toLowerCase()] || (isDark() ? '#8c909c' : '#656a76'); }
+    function statusSurface(s) { var c = isDark() ? STATUS_SURFACES_DARK : STATUS_SURFACES_LIGHT; return c[(s||'').toLowerCase()] || (isDark() ? 'rgba(140,144,156,0.10)' : '#f5f5f6'); }
 
     function fetchData() {
       Promise.all([
@@ -476,6 +608,7 @@ DASHBOARD_HTML = """
       .then(([statusData, concData]) => {
         renderCards(statusData.current);
         renderLog(statusData.log);
+        window.__lastConcData = concData;
         renderConcurrencyChart(concData);
         updateCounters(statusData.current, statusData.max_concurrent_agents || 0);
         const ts = new Date().toLocaleTimeString();
@@ -559,6 +692,16 @@ DASHBOARD_HTML = """
       ctx.scale(dpr, dpr);
       const W = rect.width, H = rect.height;
 
+      /* Read theme-aware chart colors from CSS custom properties */
+      const cs = getComputedStyle(document.documentElement);
+      const cGrid     = cs.getPropertyValue('--hds-chart-grid').trim();
+      const cLabel    = cs.getPropertyValue('--hds-chart-label').trim();
+      const cTitle    = cs.getPropertyValue('--hds-chart-title').trim();
+      const cLine     = cs.getPropertyValue('--hds-chart-line').trim();
+      const cFillS    = cs.getPropertyValue('--hds-chart-fill-start').trim();
+      const cFillE    = cs.getPropertyValue('--hds-chart-fill-end').trim();
+      const cNow      = cs.getPropertyValue('--hds-chart-now').trim();
+
       const points = data.points || [];
       const maxAgents = Math.max(data.max_agents || 1, 1);
       const tMin = data.t_min || 0;
@@ -571,7 +714,7 @@ DASHBOARD_HTML = """
       ctx.clearRect(0, 0, W, H);
 
       /* Grid lines — HDS border-faint */
-      ctx.strokeStyle = '#ebebed';
+      ctx.strokeStyle = cGrid;
       ctx.lineWidth = 1;
       for (let i = 0; i <= maxAgents; i++) {
         const y = pad.top + plotH - (i / maxAgents) * plotH;
@@ -579,7 +722,7 @@ DASHBOARD_HTML = """
       }
 
       /* Y-axis labels */
-      ctx.fillStyle = '#656a76';
+      ctx.fillStyle = cLabel;
       ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
@@ -593,7 +736,7 @@ DASHBOARD_HTML = """
       ctx.translate(14, pad.top + plotH / 2);
       ctx.rotate(-Math.PI / 2);
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#3b3d45';
+      ctx.fillStyle = cTitle;
       ctx.font = '500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       ctx.fillText('Agents', 0, 0);
       ctx.restore();
@@ -601,7 +744,7 @@ DASHBOARD_HTML = """
       /* X-axis labels */
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillStyle = '#656a76';
+      ctx.fillStyle = cLabel;
       ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       const span = tMax - tMin;
       const tickCount = Math.min(8, Math.max(points.length, 1));
@@ -611,12 +754,12 @@ DASHBOARD_HTML = """
         const d = new Date(t * 1000);
         const lbl = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
         ctx.fillText(lbl, x, pad.top + plotH + 8);
-        ctx.strokeStyle = '#ebebed'; ctx.lineWidth = 0.5;
+        ctx.strokeStyle = cGrid; ctx.lineWidth = 0.5;
         ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + plotH); ctx.stroke();
       }
 
       if (points.length < 2) {
-        ctx.fillStyle = '#656a76';
+        ctx.fillStyle = cLabel;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
         ctx.fillText('Waiting for data\u2026', W / 2, H / 2);
@@ -628,11 +771,11 @@ DASHBOARD_HTML = """
       const nowPx = pad.left + nowFrac * plotW;
       ctx.save();
       ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = '#b35900';
+      ctx.strokeStyle = cNow;
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(nowPx, pad.top); ctx.lineTo(nowPx, pad.top + plotH); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = '#b35900';
+      ctx.fillStyle = cNow;
       ctx.font = '500 10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('now', nowPx, pad.top - 10);
@@ -658,8 +801,8 @@ DASHBOARD_HTML = """
       ctx.closePath();
 
       const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + plotH);
-      grad.addColorStop(0, 'rgba(12, 86, 233, 0.18)');
-      grad.addColorStop(1, 'rgba(12, 86, 233, 0.02)');
+      grad.addColorStop(0, cFillS);
+      grad.addColorStop(1, cFillE);
       ctx.fillStyle = grad;
       ctx.fill();
 
@@ -674,16 +817,16 @@ DASHBOARD_HTML = """
         ctx.lineTo(px, py);
       }
       ctx.lineTo(nowPx, lastY);
-      ctx.strokeStyle = '#0c56e9';
+      ctx.strokeStyle = cLine;
       ctx.lineWidth = 2;
       ctx.stroke();
 
       /* Dot at current value */
       ctx.beginPath();
       ctx.arc(nowPx, lastY, 4, 0, Math.PI * 2);
-      ctx.fillStyle = '#0c56e9';
+      ctx.fillStyle = cLine;
       ctx.fill();
-      ctx.fillStyle = '#3b3d45';
+      ctx.fillStyle = cTitle;
       ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       ctx.textAlign = 'left';
       ctx.fillText(points[points.length - 1].count, nowPx + 8, lastY + 4);
