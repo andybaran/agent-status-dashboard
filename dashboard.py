@@ -849,7 +849,8 @@ def read_csv():
         with open(CSV_PATH, "r", newline="") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                rows.append(row)
+                # Strip None keys from extra CSV columns beyond header
+                rows.append({k: v for k, v in row.items() if k is not None})
     except Exception:
         pass
     return rows
@@ -965,7 +966,8 @@ def get_max_concurrent_agents():
 def api_status():
     current = get_current_status()
     rows = read_csv()
-    log = list(reversed(rows[-100:]))
+    # Strip any None keys from rows (e.g. extra CSV columns beyond header)
+    log = [{k: v for k, v in r.items() if k is not None} for r in reversed(rows[-100:])]
     max_concurrent = get_max_concurrent_agents()
     return jsonify({"current": current, "log": log, "max_concurrent_agents": max_concurrent})
 
