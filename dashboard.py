@@ -411,6 +411,10 @@ DASHBOARD_HTML = """
         <span class="stat-label">Total Working Time</span>
         <span class="stat-value" id="totalWorkingTime">0s</span>
       </div>
+      <div class="stat-card">
+        <span class="stat-label">Max Concurrent</span>
+        <span class="stat-value accent" id="maxConcurrentAgents">0</span>
+      </div>
       <button class="refresh-btn" onclick="fetchData()">&#x21bb; Refresh</button>
     </div>
 
@@ -473,7 +477,7 @@ DASHBOARD_HTML = """
         renderCards(statusData.current);
         renderLog(statusData.log);
         renderConcurrencyChart(concData);
-        updateCounters(statusData.current);
+        updateCounters(statusData.current, statusData.max_concurrent_agents || 0);
         const ts = new Date().toLocaleTimeString();
         document.getElementById('lastUpdate').textContent = ts;
         document.getElementById('lastUpdateBottom').textContent = 'Last refreshed: ' + ts;
@@ -481,13 +485,14 @@ DASHBOARD_HTML = """
       .catch(err => console.error('Fetch error:', err));
     }
 
-    function updateCounters(agents) {
+    function updateCounters(agents, maxConcurrent) {
       const total = Object.keys(agents).length;
       const working = Object.values(agents).filter(a => a.status === 'working').length;
       const totalSecs = Object.values(agents).reduce((sum, a) => sum + (a.working_seconds || 0), 0);
       document.getElementById('totalAgents').textContent = total;
       document.getElementById('workingAgents').textContent = working;
       document.getElementById('totalWorkingTime').textContent = fmtDuration(totalSecs);
+      document.getElementById('maxConcurrentAgents').textContent = maxConcurrent;
     }
 
     function fmtDuration(secs) {
@@ -786,13 +791,40 @@ def index():
     return render_template_string(DASHBOARD_HTML, title=DASHBOARD_TITLE)
 
 
+def get_max_concurrent_agents():
+    """Calculate the maximum number of agents that were working concurrently."""
+    rows = read_csv()
+    events = []
+    for row in rows:
+        name = row.get("agent_name", "")
+        status = row.get("status", "")
+        ts_str = row.get("timestamp", "")
+        try:
+            ts = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=timezone.utc
+            ).timestamp()
+        except (ValueError, TypeError):
+            continue
+        events.append((ts, name, status))
+    events.sort(key=lambda x: x[0])
+    working_set = set()
+    max_concurrent = 0
+    for _, name, status in events:
+        if status == "working":
+            working_set.add(name)
+        else:
+            working_set.discard(name)
+        max_concurrent = max(max_concurrent, len(working_set))
+    return max_concurrent
+
+
 @app.route("/api/status")
 def api_status():
     current = get_current_status()
     rows = read_csv()
-    # Return last 100 entries, newest first
     log = list(reversed(rows[-100:]))
-    return jsonify({"current": current, "log": log})
+    max_concurrent = get_max_concurrent_agents()
+    return jsonify({"current": current, "log": log, "max_concurrent_agents": max_concurrent})
 
 
 @app.route("/api/update/<agent_name>/<status>", methods=["POST"])
