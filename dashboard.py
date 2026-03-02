@@ -37,6 +37,7 @@ app = Flask(__name__)
 DASHBOARD_PORT = int(os.environ.get("DASHBOARD_PORT", "5050"))
 CSV_PATH = os.environ.get("CSV_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent_status.csv"))
 DASHBOARD_TITLE = os.environ.get("DASHBOARD_TITLE", "Agent Status Dashboard")
+APP_VERSION = os.environ.get("APP_VERSION", "1.0.0")
 
 VALID_STATUSES = {"working", "waiting", "completed", "idle", "blocked", "error"}
 
@@ -544,6 +545,7 @@ DASHBOARD_HTML = """
       <h1>{{ title }}</h1>
     </div>
     <div class="header-right">
+      <span style="opacity:0.5;font-size:0.75rem;">v{{ version }}</span>
       <span><span class="refresh-indicator pulse"></span>&nbsp;Live</span>
       <span id="lastUpdate">--</span>
       <button class="theme-toggle" onclick="cycleTheme()" title="Toggle theme" aria-label="Toggle theme">
@@ -1018,7 +1020,7 @@ def get_current_status():
 
 @app.route("/")
 def index():
-    return render_template_string(DASHBOARD_HTML, title=DASHBOARD_TITLE, logo_svg=LOGO_SVG)
+    return render_template_string(DASHBOARD_HTML, title=DASHBOARD_TITLE, logo_svg=LOGO_SVG, version=APP_VERSION)
 
 
 def get_max_concurrent_agents():

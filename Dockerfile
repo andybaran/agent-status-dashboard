@@ -27,9 +27,11 @@ RUN mkdir -p /data && chown appuser:appuser /data
 USER appuser
 
 # Environment defaults
+ARG APP_VERSION=dev
 ENV DASHBOARD_PORT=5050
 ENV CSV_PATH=/data/agent_status.csv
 ENV DASHBOARD_TITLE="Agent Status Dashboard"
+ENV APP_VERSION=${APP_VERSION}
 
 EXPOSE 5050
 
