@@ -84,3 +84,26 @@ Agent names with special characters must be URL-encoded:
 - `/` → `%2F`
 
 Example: `Research Agent` → `Research%20Agent`
+
+## Demo / Example
+
+To see the dashboard in action with a simulated multi-agent workflow:
+
+```bash
+pip install requests
+python examples/multi_agent_demo.py
+```
+
+This runs 8 agents through a data-pipeline workflow in ~3 minutes
+(or ~90s with `DEMO_SPEED=0.5`). See `examples/README.md` for details.
+
+## Integration Templates
+
+Copy the example instruction file that matches your AI assistant into your project:
+
+- `examples/claude.md` → copy as `CLAUDE.md` in your project root
+- `examples/copilot-instructions.md` → copy as `.github/copilot-instructions.md`
+
+These templates include the full dashboard API reference, naming conventions,
+and workflow patterns. Edit the "Project-Specific Instructions" section at the
+bottom to describe your project.

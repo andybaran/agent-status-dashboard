@@ -39,6 +39,39 @@ python dashboard.py
 # Dashboard available at http://localhost:5050
 ```
 
+### Try the Demo
+
+Not sure how it works? Run the included multi-agent demo:
+
+```bash
+pip install requests
+
+# Start the dashboard (if not already running)
+docker run -d -p 5050:5050 -v $(pwd)/data:/data ghcr.io/andybaran/agent-status-dashboard:latest
+
+# Run the 8-agent pipeline demo (~3 min, or ~90s at 2x speed)
+python examples/multi_agent_demo.py
+
+# Fast mode
+DEMO_SPEED=0.5 python examples/multi_agent_demo.py
+```
+
+Watch 8 agents coordinate a data pipeline — collecting, validating, transforming, training, QA (with error retry), reporting, and notifying. See `examples/README.md` for details.
+
+### Integrate Into Your AI Workflow
+
+Copy the example instruction file that matches your AI assistant into your project:
+
+```bash
+# For Claude (Claude Code, Anthropic API, etc.)
+cp examples/claude.md /path/to/your/project/CLAUDE.md
+
+# For GitHub Copilot
+cp examples/copilot-instructions.md /path/to/your/project/.github/copilot-instructions.md
+```
+
+Then edit the "Project-Specific Instructions" section to describe your project. The dashboard integration section at the top works as-is — your agents will automatically report status to the dashboard.
+
 ## Configuration
 
 Environment variables:
@@ -308,6 +341,14 @@ docker pull ghcr.io/andybaran/agent-status-dashboard:1.0.0
 docker pull ghcr.io/andybaran/agent-status-dashboard:1.0
 docker pull ghcr.io/andybaran/agent-status-dashboard:latest
 ```
+
+## Contributing / Maintenance Rules
+
+When making changes to this repository:
+
+1. **`README.md`** and **`dashboard-instructions.md`** MUST be updated whenever the API, features, configuration, or behavior changes.
+2. **`examples/`** MUST always use the latest dashboard version and API patterns. Update the demo whenever the API changes.
+3. Update `CLAUDE.md` and `.github/copilot-instructions.md` for architecture, convention, or workflow changes.
 
 ## License
 

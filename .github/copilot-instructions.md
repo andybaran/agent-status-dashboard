@@ -249,16 +249,52 @@ To ensure thread safety with Flask's `is_request_context()` behavior:
 | `README.md` | Human-readable documentation |
 | `Dockerfile` | Multi-stage Docker build (python:3.13-slim, non-root UID 1000) |
 | `requirements.txt` | Python dependencies (Flask only) |
+| `examples/multi_agent_demo.py` | Runnable 8-agent data-pipeline demo |
+| `examples/claude.md` | Template CLAUDE.md for user projects |
+| `examples/copilot-instructions.md` | Template copilot-instructions.md for user projects |
+| `examples/README.md` | Example setup and usage instructions |
 | `.github/workflows/build-image.yml` | CI: multi-platform Docker build + push |
 | `.gitignore` | Ignores Python artifacts, CSV data, IDE files |
 | `LICENSE` | MIT License |
+
+## Examples
+
+The `examples/` folder contains onboarding resources for new users:
+
+| File | Description |
+|------|-------------|
+| `examples/multi_agent_demo.py` | Runnable 8-agent data-pipeline simulation (~3 min, or ~90s at `DEMO_SPEED=0.5`) |
+| `examples/claude.md` | Template `CLAUDE.md` for users to copy into their projects — teaches Claude to report status |
+| `examples/copilot-instructions.md` | Template `.github/copilot-instructions.md` — teaches GitHub Copilot to report status |
+| `examples/README.md` | Setup, usage, and integration instructions |
+
+The demo requires only `requests` (no AI platform dependency) and posts to the
+dashboard's HTTP API to simulate realistic agent lifecycle transitions including
+error/retry, waiting, and coordination. The template instruction files show
+users how to integrate status reporting into their own AI workflows.
+
+## Mandatory Update Rules
+
+These rules are **non-negotiable** and must be followed for every change:
+
+1. **`examples/`** — The example must always use the latest dashboard version and
+   API patterns. If you add a new API endpoint, status type, or config option,
+   update the example to demonstrate or at least document it.
+2. **`README.md`** — Must be updated whenever features, API, configuration,
+   environment variables, or behavior changes.
+3. **`dashboard-instructions.md`** — Must be updated whenever the agent-facing
+   API changes (new endpoints, new statuses, new parameters, new behavior).
+4. **`CLAUDE.md`** — Must be updated for architecture or workflow changes.
+5. **This file** (`copilot-instructions.md`) — Must be updated for architecture,
+   code conventions, file layout, or CI/CD changes.
 
 ## Do NOT
 
 - Split `dashboard.py` into multiple files without a compelling reason
 - Add JavaScript frameworks or CSS libraries (keep it vanilla)
 - Use raw hex colors in CSS rules — always use `--ds-*` custom properties
-- Store sensitive data in the CSV or expose it via the API
-- Change the CSV schema (`timestamp,agent_name,status`) without migration logic
+- Store sensitive data in the database or expose it via the API
+- Change the SQLite schema without migration logic
 - Remove the FOUC-prevention script from `<head>`
 - Break the multi-platform Docker build (test on both amd64 and arm64)
+- Let `examples/` fall out of date with the current API
