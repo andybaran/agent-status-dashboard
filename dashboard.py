@@ -611,6 +611,10 @@ DASHBOARD_HTML = """
         <span class="stat-label">Max Concurrent</span>
         <span class="stat-value accent" id="maxConcurrentAgents">0</span>
       </div>
+      <div class="stat-card">
+        <span class="stat-label">Total Duration</span>
+        <span class="stat-value" id="totalDuration">0s</span>
+      </div>
       <button class="refresh-btn" onclick="fetchData()">&#x21bb; Refresh</button>
     </div>
 
@@ -720,7 +724,7 @@ DASHBOARD_HTML = """
         renderLog(statusData.log);
         window.__lastConcData = concData;
         renderConcurrencyChart(concData);
-        updateCounters(statusData.current, statusData.max_concurrent_agents || 0);
+        updateCounters(statusData.current, statusData.max_concurrent_agents || 0, statusData.total_duration_seconds || 0);
         const ts = new Date().toLocaleTimeString();
         document.getElementById('lastUpdate').textContent = ts;
         document.getElementById('lastUpdateBottom').textContent = 'Last refreshed: ' + ts;
@@ -728,7 +732,7 @@ DASHBOARD_HTML = """
       .catch(err => console.error('Fetch error:', err));
     }
 
-    function updateCounters(agents, maxConcurrent) {
+    function updateCounters(agents, maxConcurrent, totalDuration) {
       const total = Object.keys(agents).length;
       const working = Object.values(agents).filter(a => a.status === 'working').length;
       const totalSecs = Object.values(agents).reduce((sum, a) => sum + (a.working_seconds || 0), 0);
@@ -736,6 +740,7 @@ DASHBOARD_HTML = """
       document.getElementById('workingAgents').textContent = working;
       document.getElementById('totalWorkingTime').textContent = fmtDuration(totalSecs);
       document.getElementById('maxConcurrentAgents').textContent = maxConcurrent;
+      document.getElementById('totalDuration').textContent = fmtDuration(totalDuration);
     }
 
     /* ── Sort state ─────────────────────────────────────────────── */
@@ -1181,6 +1186,29 @@ def get_max_concurrent_agents():
     return max_concurrent
 
 
+def get_total_duration_seconds():
+    """Wall-clock seconds from the first log entry to the last."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT MIN(timestamp) AS first_ts, MAX(timestamp) AS last_ts FROM status_log"
+    ).fetchone()
+    conn.close()
+    if not row or not row["first_ts"] or not row["last_ts"]:
+        return 0
+    def parse_ts(ts_str):
+        for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d %H:%M:%S"):
+            try:
+                return datetime.strptime(ts_str, fmt).replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+        return None
+    first = parse_ts(row["first_ts"])
+    last = parse_ts(row["last_ts"])
+    if not first or not last:
+        return 0
+    return max(0, (last - first).total_seconds())
+
+
 @app.route("/api/status")
 def api_status():
     current = get_current_status()
@@ -1189,7 +1217,8 @@ def api_status():
     conn.close()
     log = [dict(row) for row in rows]
     max_concurrent = get_max_concurrent_agents()
-    return jsonify({"current": current, "log": log, "max_concurrent_agents": max_concurrent})
+    total_duration = get_total_duration_seconds()
+    return jsonify({"current": current, "log": log, "max_concurrent_agents": max_concurrent, "total_duration_seconds": total_duration})
 
 
 @app.route("/api/update/<agent_name>/<status>", methods=["POST"])
