@@ -283,6 +283,20 @@ To manually clear a stale agent, post an `idle` status:
 curl -X POST http://localhost:5050/api/update/StaleAgent/idle
 ```
 
+## Versioning
+
+This project follows [Semantic Versioning](https://semver.org/) (semver). Docker images are tagged with:
+- Full version (e.g. `1.0.0`)
+- Major.minor version (e.g. `1.0`)
+- `latest` (always points to the newest version tag)
+
+To pull a specific version:
+```bash
+docker pull ghcr.io/andybaran/agent-status-dashboard:1.0.0
+docker pull ghcr.io/andybaran/agent-status-dashboard:1.0
+docker pull ghcr.io/andybaran/agent-status-dashboard:latest
+```
+
 ## License
 
 MIT License - Copyright 2026 Andy Baran

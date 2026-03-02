@@ -127,11 +127,25 @@ Flask's test client (`app.test_client()`).
 
 GitHub Actions workflow at `.github/workflows/build-image.yml`:
 
-- **Trigger:** Push to `main` when `Dockerfile`, `dashboard.py`, `requirements.txt`,
-  or the workflow file itself changes
+- **Trigger:** 
+  - Push to `main` when `Dockerfile`, `dashboard.py`, `requirements.txt`, or the workflow file itself changes
+  - Push of version tags matching `v*` (e.g. `v1.0.0`)
 - **Builds:** Multi-platform Docker image (`linux/amd64` + `linux/arm64`)
-- **Pushes to:** `ghcr.io/andybaran/agent-status-dashboard:latest` + SHA tag
+- **Pushes to:** `ghcr.io/andybaran/agent-status-dashboard`
+  - On `main` push: `:latest` + `:SHA` tags
+  - On version tag push: `:latest` + `:VERSION` + `:MAJOR.MINOR` tags
 - **Caching:** GitHub Actions cache (`type=gha`)
+
+### Creating a New Release
+
+To create a new versioned release:
+
+```bash
+git tag -a vX.Y.Z -m "vX.Y.Z: Release description"
+git push origin vX.Y.Z
+```
+
+This will trigger the workflow to build and push Docker images with version tags.
 
 ## Code Style & Conventions
 
