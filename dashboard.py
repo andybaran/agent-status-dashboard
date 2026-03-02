@@ -14,6 +14,7 @@ Configuration via environment variables:
     DASHBOARD_PORT  - Port to run on (default: 5050)
     CSV_PATH        - Path to status CSV file (default: ./agent_status.csv)
     DASHBOARD_TITLE - Title shown in the dashboard (default: Agent Status Dashboard)
+    STALE_THRESHOLD_MINUTES - Minutes before a "working" agent is marked stale (default: 30)
 
 Usage:
     pip install flask
@@ -36,6 +37,11 @@ CSV_PATH = os.environ.get("CSV_PATH", os.path.join(os.path.dirname(os.path.abspa
 DASHBOARD_TITLE = os.environ.get("DASHBOARD_TITLE", "Agent Status Dashboard")
 
 VALID_STATUSES = {"working", "waiting", "completed", "idle", "blocked", "error"}
+
+# Staleness threshold (seconds). If an agent's last update is older than this
+# and its status is still "working", the dashboard displays it as "idle (stale)".
+# Configurable via STALE_THRESHOLD_MINUTES env var (default: 30 minutes).
+STALE_THRESHOLD = int(os.environ.get("STALE_THRESHOLD_MINUTES", "30")) * 60
 
 # HDS-aligned status colors
 STATUS_COLORS = {
@@ -383,6 +389,19 @@ DASHBOARD_HTML = """
       border-radius: 50%;
       display: inline-block;
     }
+    .stale-tag {
+      font-size: 0.625rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--hds-foreground-warning);
+      background: var(--hds-surface-faint);
+      border: 1px solid var(--hds-foreground-warning);
+      border-radius: 3px;
+      padding: 1px 5px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
     .card-meta {
       font-size: 0.8125rem;
       color: var(--hds-foreground-faint);
@@ -650,11 +669,13 @@ DASHBOARD_HTML = """
       for (const [name, info] of entries) {
         const fg = statusColor(info.status);
         const bg = statusSurface(info.status);
+        const staleTag = info.stale ? ' <span class="stale-tag">stale</span>' : '';
+        const statusLabel = (info.status || 'idle') + (info.stale ? ' (stale)' : '');
         grid.innerHTML += `
           <div class="card" style="border-left-color:${fg}">
             <div class="card-header">
-              <span class="agent-name">${name}</span>
-              <span class="status-badge" style="background:${bg};color:${fg};border-color:${fg}"><span></span>${info.status || 'idle'}</span>
+              <span class="agent-name">${name}${staleTag}</span>
+              <span class="status-badge" style="background:${bg};color:${fg};border-color:${fg}"><span></span>${statusLabel}</span>
             </div>
             <div class="card-meta">
               <div>Last update: <strong>${info.timestamp || 'never'}</strong></div>
@@ -926,6 +947,21 @@ def get_current_status():
 
     for name in known_agents:
         current[name]["working_seconds"] = round(working_totals.get(name, 0))
+
+    # Mark stale agents: if status is "working" but last update is older than threshold
+    now = datetime.now(timezone.utc).timestamp()
+    for name in known_agents:
+        if current[name]["status"] == "working":
+            ts_str = current[name].get("timestamp", "")
+            try:
+                last_ts = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ").replace(
+                    tzinfo=timezone.utc
+                ).timestamp()
+            except (ValueError, TypeError):
+                last_ts = 0
+            if now - last_ts > STALE_THRESHOLD:
+                current[name]["status"] = "idle"
+                current[name]["stale"] = True
 
     return current
 
