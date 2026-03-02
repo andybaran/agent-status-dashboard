@@ -818,6 +818,14 @@ DASHBOARD_HTML = """
         const bg = statusSurface(info.status);
         const staleTag = info.stale ? ' <span class="stale-tag">stale</span>' : '';
         const statusLabel = (info.status || 'idle') + (info.stale ? ' (stale)' : '');
+        let taskHtml = '';
+        if (info.task_name) {
+          if (info.task_url) {
+            taskHtml = `<div>Task: <a href="${info.task_url}" target="_blank" rel="noopener" style="color:var(--ds-foreground-action);text-decoration:underline;">${info.task_name}</a></div>`;
+          } else {
+            taskHtml = `<div>Task: <strong>${info.task_name}</strong></div>`;
+          }
+        }
         grid.innerHTML += `
           <div class="card" style="border-left-color:${fg}">
             <div class="card-header">
@@ -825,6 +833,7 @@ DASHBOARD_HTML = """
               <span class="status-badge" style="background:${bg};color:${fg};border-color:${fg}"><span></span>${statusLabel}</span>
             </div>
             <div class="card-meta">
+              ${taskHtml}
               <div>Last update: <strong>${info.timestamp || 'never'}</strong></div>
               <div>Total working time: <strong>${fmtDuration(info.working_seconds)}</strong></div>
             </div>
@@ -1023,11 +1032,21 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp TEXT NOT NULL,
             agent_name TEXT NOT NULL,
-            status TEXT NOT NULL
+            status TEXT NOT NULL,
+            task_name TEXT DEFAULT '',
+            task_url TEXT DEFAULT ''
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_status_log_agent ON status_log(agent_name)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_status_log_ts ON status_log(timestamp)")
+
+    # Migrate: add task columns if upgrading from older schema
+    try:
+        conn.execute("SELECT task_name FROM status_log LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE status_log ADD COLUMN task_name TEXT DEFAULT ''")
+        conn.execute("ALTER TABLE status_log ADD COLUMN task_url TEXT DEFAULT ''")
+
     conn.commit()
     
     # Import legacy CSV if DB is empty and CSV exists
@@ -1070,7 +1089,7 @@ def get_known_agents():
     return {row["agent_name"] for row in rows}
 
 
-def write_status(agent_name, status):
+def write_status(agent_name, status, task_name="", task_url=""):
     """Insert a status row into the database."""
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     db_dir = os.path.dirname(DB_PATH)
@@ -1078,8 +1097,8 @@ def write_status(agent_name, status):
         os.makedirs(db_dir, exist_ok=True)
     conn = get_db()
     conn.execute(
-        "INSERT INTO status_log (timestamp, agent_name, status) VALUES (?, ?, ?)",
-        (ts, agent_name, status)
+        "INSERT INTO status_log (timestamp, agent_name, status, task_name, task_url) VALUES (?, ?, ?, ?, ?)",
+        (ts, agent_name, status, task_name, task_url)
     )
     conn.commit()
     conn.close()
@@ -1088,7 +1107,7 @@ def write_status(agent_name, status):
 def get_current_status():
     """Get the most recent status for each agent, including total working time."""
     conn = get_db()
-    rows = conn.execute("SELECT id, timestamp, agent_name, status FROM status_log ORDER BY id").fetchall()
+    rows = conn.execute("SELECT id, timestamp, agent_name, status, task_name, task_url FROM status_log ORDER BY id").fetchall()
     conn.close()
     
     known_agents = get_known_agents()
@@ -1096,7 +1115,7 @@ def get_current_status():
     # Initialize all known agents
     current = {}
     for name in known_agents:
-        current[name] = {"status": "idle", "timestamp": "never", "working_seconds": 0}
+        current[name] = {"status": "idle", "timestamp": "never", "working_seconds": 0, "task_name": "", "task_url": ""}
 
     # Track working intervals per agent
     working_start = {}  # agent -> timestamp when "working" began
@@ -1123,7 +1142,21 @@ def get_current_status():
                 working_totals[name] += ts - working_start[name]
                 del working_start[name]
 
+        # Preserve previous task info before overwriting
+        prev_task = current[name].get("task_name", "")
+        prev_url = current[name].get("task_url", "")
+
         current[name] = {"status": status, "timestamp": ts_str}
+
+        # Use new task info if provided, otherwise carry forward previous
+        row_task = row["task_name"] or ""
+        row_url = row["task_url"] or ""
+        if row_task:
+            current[name]["task_name"] = row_task
+            current[name]["task_url"] = row_url
+        else:
+            current[name]["task_name"] = prev_task
+            current[name]["task_url"] = prev_url
 
     # Add any still-working time up to now
     now = datetime.now(timezone.utc).timestamp()
@@ -1223,7 +1256,13 @@ def api_status():
 
 @app.route("/api/update/<agent_name>/<status>", methods=["POST"])
 def api_update(agent_name, status):
-    """API endpoint to update agent status. Agents self-register by posting."""
+    """API endpoint to update agent status. Agents self-register by posting.
+    
+    Optional query params:
+        task  - Name/description of the current task
+        task_url - URL to the task (e.g. GitHub issue link)
+    """
+    from flask import request
     status_lower = status.lower()
     if status_lower not in VALID_STATUSES:
         return jsonify({
@@ -1231,8 +1270,15 @@ def api_update(agent_name, status):
             "error": f"Invalid status '{status}'. Valid: {', '.join(sorted(VALID_STATUSES))}"
         }), 400
     canonical = normalize_agent_name(agent_name)
-    write_status(canonical, status_lower)
-    return jsonify({"ok": True, "agent": canonical, "status": status_lower})
+    task_name = request.args.get("task", "")
+    task_url = request.args.get("task_url", "")
+    write_status(canonical, status_lower, task_name=task_name, task_url=task_url)
+    resp = {"ok": True, "agent": canonical, "status": status_lower}
+    if task_name:
+        resp["task"] = task_name
+    if task_url:
+        resp["task_url"] = task_url
+    return jsonify(resp)
 
 
 @app.route("/api/export/csv")
