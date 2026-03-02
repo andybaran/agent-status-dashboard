@@ -11,7 +11,8 @@ A lightweight, real-time dashboard for monitoring AI agent status in orchestrati
 - **Working Time Tracking** — Tracks total time each agent has spent in "working" status
 - **Activity Log** — Last 100 status changes with timestamps
 - **Concurrency Chart** — Canvas-based visualization of concurrent working agents over time
-- **Dark Theme** — Monospace styling optimized for terminal-adjacent workflows
+- **Staleness Detection** — Agents stuck in "working" beyond a configurable threshold are automatically shown as "idle (stale)" with a warning tag
+- **Light/Dark Theme** — HDS-compliant theme toggle (light, dark, system) with `localStorage` persistence
 - **No External Dependencies** — Pure Python/Flask with vanilla JavaScript
 
 ## Quick Start
@@ -47,10 +48,11 @@ Environment variables:
 | `DASHBOARD_PORT` | `5050` | Port to run the dashboard |
 | `CSV_PATH` | `./agent_status.csv` | Path to the status CSV file |
 | `DASHBOARD_TITLE` | `Agent Status Dashboard` | Title shown in the header |
+| `STALE_THRESHOLD_MINUTES` | `30` | Minutes before a "working" agent is marked stale |
 
 Example:
 ```bash
-DASHBOARD_PORT=8080 DASHBOARD_TITLE="My Agents" python dashboard.py
+DASHBOARD_PORT=8080 DASHBOARD_TITLE="My Agents" STALE_THRESHOLD_MINUTES=60 python dashboard.py
 ```
 
 ## API Reference
@@ -98,10 +100,11 @@ GET /api/status
       "timestamp": "2026-01-15T10:30:00Z",
       "working_seconds": 120
     },
-    "OtherAgent": {
+    "StaleAgent": {
       "status": "idle",
-      "timestamp": "2026-01-15T10:25:00Z",
-      "working_seconds": 300
+      "timestamp": "2026-01-14T08:00:00Z",
+      "working_seconds": 7200,
+      "stale": true
     }
   },
   "log": [
@@ -110,6 +113,8 @@ GET /api/status
   ]
 }
 ```
+
+> **Note:** The `stale` field (boolean) appears only on agents whose last CSV status was `working` but whose last update is older than `STALE_THRESHOLD_MINUTES`. These agents are displayed as "idle (stale)" in the UI.
 
 ### Get Concurrency Data
 
@@ -237,6 +242,18 @@ docker run -d -p 8080:5050 ghcr.io/andybaran/agent-status-dashboard:latest
 URL-encode agent names when calling the API. Spaces become `%20`:
 ```bash
 curl -X POST http://localhost:5050/api/update/My%20Agent%20Name/working
+```
+
+### Agents still show "working" long after they stopped
+
+If an agent crashes or the orchestrator session ends without posting a final `idle` or `completed` status, the dashboard will continue to show the agent as "working." After `STALE_THRESHOLD_MINUTES` (default: 30), the dashboard automatically marks these agents as **idle (stale)** with a warning tag. To adjust the threshold:
+```bash
+docker run -d -p 5050:5050 -e STALE_THRESHOLD_MINUTES=60 ...
+```
+
+To manually clear a stale agent, post an `idle` status:
+```bash
+curl -X POST http://localhost:5050/api/update/StaleAgent/idle
 ```
 
 ## License
