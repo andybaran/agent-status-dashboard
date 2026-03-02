@@ -26,6 +26,7 @@ Then open http://localhost:5050 in your browser.
 import os
 import csv
 import json
+import re
 from datetime import datetime, timezone
 from flask import Flask, render_template_string, jsonify
 
@@ -37,6 +38,27 @@ CSV_PATH = os.environ.get("CSV_PATH", os.path.join(os.path.dirname(os.path.abspa
 DASHBOARD_TITLE = os.environ.get("DASHBOARD_TITLE", "Agent Status Dashboard")
 
 VALID_STATUSES = {"working", "waiting", "completed", "idle", "blocked", "error"}
+
+# Acronyms that .title() mangles — maps wrong form to correct form
+ACRONYMS = {
+    "Ui": "UI", "Gitops": "GitOps", "Api": "API", "Ci": "CI", "Cd": "CD",
+    "Hcp": "HCP", "Vso": "VSO", "Csi": "CSI", "Ldap": "LDAP", "Aws": "AWS",
+}
+
+
+def normalize_agent_name(name):
+    """Normalize agent names so formatting variants collapse to the same identity.
+
+    - Strips whitespace, replaces hyphens/underscores with spaces
+    - Title-cases words, then restores known acronyms (UI, GitOps, etc.)
+    - Numbered suffixes (e.g. '01', '02') are preserved as distinct agents
+    """
+    clean = name.strip().replace("-", " ").replace("_", " ")
+    clean = re.sub(r"\s+", " ", clean)
+    clean = clean.title()
+    for wrong, right in ACRONYMS.items():
+        clean = clean.replace(wrong, right)
+    return clean
 
 # Staleness threshold (seconds). If an agent's last update is older than this
 # and its status is still "working", the dashboard displays it as "idle (stale)".
@@ -862,7 +884,7 @@ DASHBOARD_HTML = """
 
 
 def read_csv():
-    """Read the CSV file and return all rows."""
+    """Read the CSV file and return all rows with normalized agent names."""
     rows = []
     if not os.path.exists(CSV_PATH):
         return rows
@@ -871,7 +893,11 @@ def read_csv():
             reader = csv.DictReader(f)
             for row in reader:
                 # Strip None keys from extra CSV columns beyond header
-                rows.append({k: v for k, v in row.items() if k is not None})
+                cleaned = {k: v for k, v in row.items() if k is not None}
+                # Normalize agent names on read so historical variants merge
+                if "agent_name" in cleaned and cleaned["agent_name"]:
+                    cleaned["agent_name"] = normalize_agent_name(cleaned["agent_name"])
+                rows.append(cleaned)
     except Exception:
         pass
     return rows
@@ -1017,8 +1043,9 @@ def api_update(agent_name, status):
             "ok": False,
             "error": f"Invalid status '{status}'. Valid: {', '.join(sorted(VALID_STATUSES))}"
         }), 400
-    write_status(agent_name, status_lower)
-    return jsonify({"ok": True, "agent": agent_name, "status": status_lower})
+    canonical = normalize_agent_name(agent_name)
+    write_status(canonical, status_lower)
+    return jsonify({"ok": True, "agent": canonical, "status": status_lower})
 
 
 @app.route("/api/concurrency")

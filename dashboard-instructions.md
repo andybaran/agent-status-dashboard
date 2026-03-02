@@ -21,6 +21,11 @@ POST /api/update/<agent_name>/<status>
 
 Valid statuses: `working`, `waiting`, `completed`, `idle`, `blocked`, `error`
 
+**Naming convention:** Use `Title Case` with spaces (e.g. `Research Agent`).
+Names are normalized server-side — hyphens, underscores, and casing differences
+all resolve to the same canonical name. Known acronyms (UI, API, CSI, VSO, etc.)
+are preserved automatically.
+
 Examples:
 ```bash
 # Start working

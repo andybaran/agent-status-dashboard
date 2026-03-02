@@ -82,10 +82,35 @@ curl -X POST http://localhost:5050/api/update/MyAgent/error
 
 **Response:**
 ```json
-{"ok": true, "agent": "MyAgent", "status": "working"}
+{"ok": true, "agent": "My Agent", "status": "working"}
 ```
 
-### Get All Agent Status
+> **Note:** The returned `agent` field is the *canonical* (normalized) name — see
+> [Agent Naming Convention](#agent-naming-convention) below.
+
+### Agent Naming Convention
+
+Agent names are **automatically normalized** on both ingest and read so that
+formatting variants collapse to a single identity:
+
+| Posted as | Canonical form |
+|-----------|---------------|
+| `orchestrator-agent` | Orchestrator Agent |
+| `orchestrator agent` | Orchestrator Agent |
+| `Orchestrator Agent` | Orchestrator Agent |
+| `python-agent-01` | Python Agent 01 |
+
+**Rules applied (in order):**
+
+1. Strip leading/trailing whitespace
+2. Replace hyphens (`-`) and underscores (`_`) with spaces
+3. Collapse multiple spaces
+4. Title-case each word
+5. Restore known acronyms: UI, API, CI, CD, HCP, VSO, CSI, LDAP, AWS, GitOps
+
+**Best practice:** Post names in `Title Case` with spaces (e.g. `Research Agent`)
+to avoid any ambiguity. Numbered suffixes (e.g. `Python Agent 01`) are preserved
+as distinct agents.
 
 ```bash
 GET /api/status
