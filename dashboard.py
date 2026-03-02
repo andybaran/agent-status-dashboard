@@ -826,6 +826,10 @@ DASHBOARD_HTML = """
             taskHtml = `<div>Task: <strong>${info.task_name}</strong></div>`;
           }
         }
+        let modelHtml = '';
+        if (info.model) {
+          modelHtml = `<div>Model: <span style="color:var(--ds-foreground-faint);font-style:italic;">${info.model}</span></div>`;
+        }
         grid.innerHTML += `
           <div class="card" style="border-left-color:${fg}">
             <div class="card-header">
@@ -834,6 +838,7 @@ DASHBOARD_HTML = """
             </div>
             <div class="card-meta">
               ${taskHtml}
+              ${modelHtml}
               <div>Last update: <strong>${info.timestamp || 'never'}</strong></div>
               <div>Total working time: <strong>${fmtDuration(info.working_seconds)}</strong></div>
             </div>
@@ -1034,7 +1039,8 @@ def init_db():
             agent_name TEXT NOT NULL,
             status TEXT NOT NULL,
             task_name TEXT DEFAULT '',
-            task_url TEXT DEFAULT ''
+            task_url TEXT DEFAULT '',
+            model TEXT DEFAULT ''
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_status_log_agent ON status_log(agent_name)")
@@ -1046,6 +1052,12 @@ def init_db():
     except sqlite3.OperationalError:
         conn.execute("ALTER TABLE status_log ADD COLUMN task_name TEXT DEFAULT ''")
         conn.execute("ALTER TABLE status_log ADD COLUMN task_url TEXT DEFAULT ''")
+
+    # Migrate: add model column if upgrading from older schema
+    try:
+        conn.execute("SELECT model FROM status_log LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE status_log ADD COLUMN model TEXT DEFAULT ''")
 
     conn.commit()
     
@@ -1089,7 +1101,7 @@ def get_known_agents():
     return {row["agent_name"] for row in rows}
 
 
-def write_status(agent_name, status, task_name="", task_url=""):
+def write_status(agent_name, status, task_name="", task_url="", model=""):
     """Insert a status row into the database."""
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     db_dir = os.path.dirname(DB_PATH)
@@ -1097,8 +1109,8 @@ def write_status(agent_name, status, task_name="", task_url=""):
         os.makedirs(db_dir, exist_ok=True)
     conn = get_db()
     conn.execute(
-        "INSERT INTO status_log (timestamp, agent_name, status, task_name, task_url) VALUES (?, ?, ?, ?, ?)",
-        (ts, agent_name, status, task_name, task_url)
+        "INSERT INTO status_log (timestamp, agent_name, status, task_name, task_url, model) VALUES (?, ?, ?, ?, ?, ?)",
+        (ts, agent_name, status, task_name, task_url, model)
     )
     conn.commit()
     conn.close()
@@ -1107,7 +1119,7 @@ def write_status(agent_name, status, task_name="", task_url=""):
 def get_current_status():
     """Get the most recent status for each agent, including total working time."""
     conn = get_db()
-    rows = conn.execute("SELECT id, timestamp, agent_name, status, task_name, task_url FROM status_log ORDER BY id").fetchall()
+    rows = conn.execute("SELECT id, timestamp, agent_name, status, task_name, task_url, model FROM status_log ORDER BY id").fetchall()
     conn.close()
     
     known_agents = get_known_agents()
@@ -1115,7 +1127,7 @@ def get_current_status():
     # Initialize all known agents
     current = {}
     for name in known_agents:
-        current[name] = {"status": "idle", "timestamp": "never", "working_seconds": 0, "task_name": "", "task_url": ""}
+        current[name] = {"status": "idle", "timestamp": "never", "working_seconds": 0, "task_name": "", "task_url": "", "model": ""}
 
     # Track working intervals per agent
     working_start = {}  # agent -> timestamp when "working" began
@@ -1142,21 +1154,24 @@ def get_current_status():
                 working_totals[name] += ts - working_start[name]
                 del working_start[name]
 
-        # Preserve previous task info before overwriting
+        # Preserve previous task/model info before overwriting
         prev_task = current[name].get("task_name", "")
         prev_url = current[name].get("task_url", "")
+        prev_model = current[name].get("model", "")
 
         current[name] = {"status": status, "timestamp": ts_str}
 
         # Use new task info if provided, otherwise carry forward previous
         row_task = row["task_name"] or ""
         row_url = row["task_url"] or ""
+        row_model = row["model"] or ""
         if row_task:
             current[name]["task_name"] = row_task
             current[name]["task_url"] = row_url
         else:
             current[name]["task_name"] = prev_task
             current[name]["task_url"] = prev_url
+        current[name]["model"] = row_model if row_model else prev_model
 
     # Add any still-working time up to now
     now = datetime.now(timezone.utc).timestamp()
@@ -1261,6 +1276,7 @@ def api_update(agent_name, status):
     Optional query params:
         task  - Name/description of the current task
         task_url - URL to the task (e.g. GitHub issue link)
+        model - AI model being used (e.g. Claude Sonnet 4.5, GPT-4.1)
     """
     from flask import request
     status_lower = status.lower()
@@ -1272,12 +1288,15 @@ def api_update(agent_name, status):
     canonical = normalize_agent_name(agent_name)
     task_name = request.args.get("task", "")
     task_url = request.args.get("task_url", "")
-    write_status(canonical, status_lower, task_name=task_name, task_url=task_url)
+    model = request.args.get("model", "")
+    write_status(canonical, status_lower, task_name=task_name, task_url=task_url, model=model)
     resp = {"ok": True, "agent": canonical, "status": status_lower}
     if task_name:
         resp["task"] = task_name
     if task_url:
         resp["task_url"] = task_url
+    if model:
+        resp["model"] = model
     return jsonify(resp)
 
 
