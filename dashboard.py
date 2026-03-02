@@ -84,8 +84,8 @@ def normalize_agent_name(name):
 
 # Staleness threshold (seconds). If an agent's last update is older than this
 # and its status is still "working", the dashboard displays it as "idle (stale)".
-# Configurable via STALE_THRESHOLD_MINUTES env var (default: 30 minutes).
-STALE_THRESHOLD = int(os.environ.get("STALE_THRESHOLD_MINUTES", "30")) * 60
+# Configurable via STALE_THRESHOLD_MINUTES env var (default: 10 minutes).
+STALE_THRESHOLD = int(os.environ.get("STALE_THRESHOLD_MINUTES", "10")) * 60
 
 # Status colors
 STATUS_COLORS = {
@@ -420,6 +420,24 @@ DASHBOARD_HTML = """
       color: #fff;
     }
     .sort-btn .arrow { font-size: 0.65rem; margin-left: 2px; }
+    .reset-btn {
+      background: var(--ds-surface-primary);
+      border: 1px solid var(--ds-border-primary);
+      border-radius: var(--ds-radius-small);
+      color: var(--ds-foreground-faint);
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: var(--ds-font-text);
+      line-height: 1.4;
+      margin-left: var(--ds-space-100);
+    }
+    .reset-btn:hover {
+      border-color: #dc3545;
+      color: #dc3545;
+      background: rgba(220, 53, 69, 0.05);
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -627,6 +645,7 @@ DASHBOARD_HTML = """
         <button class="sort-btn" data-sort="status" onclick="setSort('status')">Status</button>
         <button class="sort-btn" data-sort="timestamp" onclick="setSort('timestamp')">Last Update</button>
         <button class="sort-btn" data-sort="working" onclick="setSort('working')">Working Time</button>
+        <button class="reset-btn" onclick="resetAllAgents()">Reset All</button>
       </div>
     </div>
     <div class="grid" id="agentCards"></div>
@@ -770,6 +789,23 @@ DASHBOARD_HTML = """
         }
       });
       if (lastAgentsData) renderCards(lastAgentsData);
+    }
+
+    function resetAllAgents() {
+      if (!confirm('Mark all currently-working agents as idle?')) {
+        return;
+      }
+      fetch('/api/reset', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok) {
+            console.log(`Reset ${data.count} agent(s):`, data.reset_agents);
+            fetchData();
+          } else {
+            console.error('Reset failed:', data.error);
+          }
+        })
+        .catch(err => console.error('Reset error:', err));
     }
 
     function sortEntries(entries) {
@@ -1162,16 +1198,22 @@ def get_current_status():
         current[name] = {"status": status, "timestamp": ts_str}
 
         # Use new task info if provided, otherwise carry forward previous
+        # Exception: terminal statuses (idle, completed, error) with no explicit
+        # task should clear the carried-forward values — the agent is done.
         row_task = row["task_name"] or ""
         row_url = row["task_url"] or ""
         row_model = row["model"] or ""
+        terminal = status in ("idle", "completed", "error")
         if row_task:
             current[name]["task_name"] = row_task
             current[name]["task_url"] = row_url
+        elif terminal:
+            current[name]["task_name"] = ""
+            current[name]["task_url"] = ""
         else:
             current[name]["task_name"] = prev_task
             current[name]["task_url"] = prev_url
-        current[name]["model"] = row_model if row_model else prev_model
+        current[name]["model"] = row_model if row_model else ("" if terminal else prev_model)
 
     # Add any still-working time up to now
     now = datetime.now(timezone.utc).timestamp()
@@ -1300,18 +1342,65 @@ def api_update(agent_name, status):
     return jsonify(resp)
 
 
+@app.route("/api/reset", methods=["POST"])
+def api_reset_all():
+    """Mark all currently-working agents as idle by inserting new idle status rows."""
+    current_status = get_current_status()
+    reset_agents = []
+    
+    for agent_name, info in current_status.items():
+        if info["status"] == "working":
+            write_status(agent_name, "idle")
+            reset_agents.append(agent_name)
+    
+    return jsonify({
+        "ok": True,
+        "reset_agents": reset_agents,
+        "count": len(reset_agents)
+    })
+
+
+@app.route("/api/reset/<agent_name>", methods=["POST"])
+def api_reset_agent(agent_name):
+    """Mark a specific agent as idle by inserting a new idle status row."""
+    canonical = normalize_agent_name(agent_name)
+    current_status = get_current_status()
+    
+    if canonical not in current_status:
+        return jsonify({
+            "ok": False,
+            "error": f"Agent '{canonical}' not found"
+        }), 404
+    
+    if current_status[canonical]["status"] != "working":
+        return jsonify({
+            "ok": True,
+            "reset_agents": [],
+            "count": 0,
+            "message": f"Agent '{canonical}' was not working"
+        })
+    
+    write_status(canonical, "idle")
+    return jsonify({
+        "ok": True,
+        "reset_agents": [canonical],
+        "count": 1
+    })
+
+
 @app.route("/api/export/csv")
 def api_export_csv():
     """Export all status data as a CSV download."""
     import io
     conn = get_db()
-    rows = conn.execute("SELECT timestamp, agent_name, status FROM status_log ORDER BY id").fetchall()
+    rows = conn.execute("SELECT timestamp, agent_name, status, task_name, task_url, model FROM status_log ORDER BY id").fetchall()
     conn.close()
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["timestamp", "agent_name", "status"])
+    writer.writerow(["timestamp", "agent_name", "status", "task_name", "task_url", "model"])
     for row in rows:
-        writer.writerow([row["timestamp"], row["agent_name"], row["status"]])
+        writer.writerow([row["timestamp"], row["agent_name"], row["status"], 
+                        row["task_name"] or "", row["task_url"] or "", row["model"] or ""])
     return Response(output.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": "attachment; filename=agent_status.csv"})
 

@@ -67,7 +67,7 @@ All configuration is via environment variables — no config files.
 | `DB_PATH` | `./agent_status.db` | Path to the SQLite database file |
 | `CSV_PATH` | (legacy) | Path to legacy CSV file for auto-import on first run |
 | `DASHBOARD_TITLE` | `Agent Status Dashboard` | Header title text |
-| `STALE_THRESHOLD_MINUTES` | `30` | Minutes before a "working" agent is marked stale |
+| `STALE_THRESHOLD_MINUTES` | `10` | Minutes before a "working" agent is marked stale |
 | `DASHBOARD_LOGO_SVG` | *(robot icon)* | Custom SVG for the header logo |
 | `DASHBOARD_ACRONYMS` | `UI,API,CI,CD,HCP,VSO,CSI,LDAP,AWS,GitOps` | Comma-separated acronyms preserved during name normalization |
 
@@ -75,6 +75,8 @@ All configuration is via environment variables — no config files.
 
 ```
 POST /api/update/<agent_name>/<status>   — Update agent status
+POST /api/reset                          — Reset all working agents to idle
+POST /api/reset/<agent_name>             — Reset a specific agent to idle
 GET  /api/status                          — All agent statuses + activity log
 GET  /api/export/csv                      — Export full status log as CSV
 GET  /api/concurrency                     — Time-series concurrency data for chart
