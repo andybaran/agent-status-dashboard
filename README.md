@@ -17,6 +17,8 @@ A lightweight, platform-agnostic dashboard for monitoring AI agent status in orc
 - **Light/Dark Theme** — Theme toggle (light, dark, system) with `localStorage` persistence
 - **No External Dependencies** — Pure Python/Flask with vanilla JavaScript
 
+![screenshot](assets/screenshot.png)
+
 ## Quick Start
 
 ### Docker (Recommended)
