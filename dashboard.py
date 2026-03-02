@@ -3,7 +3,7 @@
 Agent Status Dashboard
 
 A lightweight Flask web application that displays real-time agent status
-from a CSV file. Agents register dynamically by posting status updates.
+from a SQLite database. Agents register dynamically by posting status updates.
 The dashboard auto-refreshes every 5 seconds.
 
 Styled with a professional design token system — colors, typography, spacing,
@@ -11,7 +11,8 @@ elevation, and component patterns follow modern SaaS dashboard conventions.
 
 Configuration via environment variables:
     DASHBOARD_PORT  - Port to run on (default: 5050)
-    CSV_PATH        - Path to status CSV file (default: ./agent_status.csv)
+    DB_PATH         - Path to SQLite database (default: ./agent_status.db)
+    CSV_PATH        - Legacy CSV file to auto-import on first run (optional)
     DASHBOARD_TITLE - Title shown in the dashboard (default: Agent Status Dashboard)
     STALE_THRESHOLD_MINUTES - Minutes before a "working" agent is marked stale (default: 30)
     DASHBOARD_LOGO_SVG - Custom SVG logo (if empty, uses default robot icon)
@@ -22,19 +23,24 @@ Usage:
     python dashboard.py
 
 Then open http://localhost:5050 in your browser.
+
+Note: If CSV_PATH exists and DB_PATH is empty, the CSV data is automatically
+imported into the SQLite database on startup.
 """
 
 import os
 import csv
+import sqlite3
 import json
 import re
 from datetime import datetime, timezone
-from flask import Flask, render_template_string, jsonify
+from flask import Flask, render_template_string, jsonify, Response
 
 app = Flask(__name__)
 
 # Configuration from environment variables
 DASHBOARD_PORT = int(os.environ.get("DASHBOARD_PORT", "5050"))
+DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent_status.db"))
 CSV_PATH = os.environ.get("CSV_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent_status.csv"))
 DASHBOARD_TITLE = os.environ.get("DASHBOARD_TITLE", "Agent Status Dashboard")
 APP_VERSION = os.environ.get("APP_VERSION", "1.0.0")
@@ -909,55 +915,89 @@ DASHBOARD_HTML = """
 """
 
 
-def read_csv():
-    """Read the CSV file and return all rows with normalized agent names."""
-    rows = []
-    if not os.path.exists(CSV_PATH):
-        return rows
-    try:
-        with open(CSV_PATH, "r", newline="") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                # Strip None keys from extra CSV columns beyond header
-                cleaned = {k: v for k, v in row.items() if k is not None}
-                # Normalize agent names on read so historical variants merge
-                if "agent_name" in cleaned and cleaned["agent_name"]:
-                    cleaned["agent_name"] = normalize_agent_name(cleaned["agent_name"])
-                rows.append(cleaned)
-    except Exception:
-        pass
-    return rows
+def init_db():
+    """Initialize SQLite database, create schema, and import legacy CSV if needed."""
+    db_dir = os.path.dirname(DB_PATH)
+    if db_dir and not os.path.exists(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
+    
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    
+    # Create schema
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS status_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            agent_name TEXT NOT NULL,
+            status TEXT NOT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_status_log_agent ON status_log(agent_name)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_status_log_ts ON status_log(timestamp)")
+    conn.commit()
+    
+    # Import legacy CSV if DB is empty and CSV exists
+    count = conn.execute("SELECT COUNT(*) FROM status_log").fetchone()[0]
+    if count == 0 and os.path.exists(CSV_PATH):
+        try:
+            with open(CSV_PATH, "r", newline="") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    timestamp = row.get("timestamp", "")
+                    agent_name = row.get("agent_name", "")
+                    status = row.get("status", "")
+                    if timestamp and agent_name and status:
+                        # Normalize agent name during import
+                        agent_name = normalize_agent_name(agent_name)
+                        conn.execute(
+                            "INSERT INTO status_log (timestamp, agent_name, status) VALUES (?, ?, ?)",
+                            (timestamp, agent_name, status)
+                        )
+            conn.commit()
+            print(f"  Imported legacy CSV data from {CSV_PATH}")
+        except Exception as e:
+            print(f"  Warning: Could not import CSV: {e}")
+    
+    conn.close()
+
+
+def get_db():
+    """Get a SQLite connection with Row factory for dict-like access."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def get_known_agents():
     """Get set of all agents that have ever posted status updates."""
-    rows = read_csv()
-    agents = set()
-    for row in rows:
-        name = row.get("agent_name", "")
-        if name:
-            agents.add(name)
-    return agents
+    conn = get_db()
+    rows = conn.execute("SELECT DISTINCT agent_name FROM status_log").fetchall()
+    conn.close()
+    return {row["agent_name"] for row in rows}
 
 
 def write_status(agent_name, status):
-    """Append a status row to the CSV file."""
+    """Insert a status row into the database."""
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    # Ensure directory exists
-    csv_dir = os.path.dirname(CSV_PATH)
-    if csv_dir and not os.path.exists(csv_dir):
-        os.makedirs(csv_dir, exist_ok=True)
-    file_exists = os.path.exists(CSV_PATH) and os.path.getsize(CSV_PATH) > 0
-    with open(CSV_PATH, "a", newline="") as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(["timestamp", "agent_name", "status"])
-        writer.writerow([ts, agent_name, status])
+    db_dir = os.path.dirname(DB_PATH)
+    if db_dir and not os.path.exists(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO status_log (timestamp, agent_name, status) VALUES (?, ?, ?)",
+        (ts, agent_name, status)
+    )
+    conn.commit()
+    conn.close()
 
 
 def get_current_status():
     """Get the most recent status for each agent, including total working time."""
-    rows = read_csv()
+    conn = get_db()
+    rows = conn.execute("SELECT id, timestamp, agent_name, status FROM status_log ORDER BY id").fetchall()
+    conn.close()
+    
     known_agents = get_known_agents()
 
     # Initialize all known agents
@@ -970,9 +1010,9 @@ def get_current_status():
     working_totals = {name: 0.0 for name in known_agents}
 
     for row in rows:
-        name = row.get("agent_name", "")
-        status = row.get("status", "idle")
-        ts_str = row.get("timestamp", "")
+        name = row["agent_name"]
+        status = row["status"]
+        ts_str = row["timestamp"]
         if name not in current:
             continue
         try:
@@ -1025,12 +1065,15 @@ def index():
 
 def get_max_concurrent_agents():
     """Calculate the maximum number of agents that were working concurrently."""
-    rows = read_csv()
+    conn = get_db()
+    rows = conn.execute("SELECT timestamp, agent_name, status FROM status_log ORDER BY timestamp, id").fetchall()
+    conn.close()
+    
     events = []
     for row in rows:
-        name = row.get("agent_name", "")
-        status = row.get("status", "")
-        ts_str = row.get("timestamp", "")
+        name = row["agent_name"]
+        status = row["status"]
+        ts_str = row["timestamp"]
         try:
             ts = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ").replace(
                 tzinfo=timezone.utc
@@ -1038,7 +1081,7 @@ def get_max_concurrent_agents():
         except (ValueError, TypeError):
             continue
         events.append((ts, name, status))
-    events.sort(key=lambda x: x[0])
+    
     working_set = set()
     max_concurrent = 0
     for _, name, status in events:
@@ -1053,9 +1096,10 @@ def get_max_concurrent_agents():
 @app.route("/api/status")
 def api_status():
     current = get_current_status()
-    rows = read_csv()
-    # Strip any None keys from rows (e.g. extra CSV columns beyond header)
-    log = [{k: v for k, v in r.items() if k is not None} for r in reversed(rows[-100:])]
+    conn = get_db()
+    rows = conn.execute("SELECT timestamp, agent_name, status FROM status_log ORDER BY id DESC LIMIT 100").fetchall()
+    conn.close()
+    log = [dict(row) for row in rows]
     max_concurrent = get_max_concurrent_agents()
     return jsonify({"current": current, "log": log, "max_concurrent_agents": max_concurrent})
 
@@ -1074,10 +1118,29 @@ def api_update(agent_name, status):
     return jsonify({"ok": True, "agent": canonical, "status": status_lower})
 
 
+@app.route("/api/export/csv")
+def api_export_csv():
+    """Export all status data as a CSV download."""
+    import io
+    conn = get_db()
+    rows = conn.execute("SELECT timestamp, agent_name, status FROM status_log ORDER BY id").fetchall()
+    conn.close()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["timestamp", "agent_name", "status"])
+    for row in rows:
+        writer.writerow([row["timestamp"], row["agent_name"], row["status"]])
+    return Response(output.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=agent_status.csv"})
+
+
 @app.route("/api/concurrency")
 def api_concurrency():
     """Return time-series data of concurrent working agents for the chart."""
-    rows = read_csv()
+    conn = get_db()
+    rows = conn.execute("SELECT timestamp, agent_name, status FROM status_log ORDER BY id").fetchall()
+    conn.close()
+    
     known_agents = get_known_agents()
     max_agents = max(len(known_agents), 1)
 
@@ -1094,14 +1157,14 @@ def api_concurrency():
     # Parse all timestamps and build events in chronological order
     events = []
     for row in rows:
-        ts_str = row.get("timestamp", "")
+        ts_str = row["timestamp"]
         try:
             ts = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ").replace(
                 tzinfo=timezone.utc
             ).timestamp()
         except (ValueError, TypeError):
             continue
-        events.append((ts, row.get("agent_name", ""), row.get("status", "")))
+        events.append((ts, row["agent_name"], row["status"]))
 
     if not events:
         now = datetime.now(timezone.utc).timestamp()
@@ -1138,9 +1201,10 @@ def api_concurrency():
 
 
 if __name__ == "__main__":
+    init_db()
     print("\n" + "=" * 60)
     print(f"  {DASHBOARD_TITLE}")
     print(f"  Open http://localhost:{DASHBOARD_PORT} in your browser")
-    print(f"  CSV path: {CSV_PATH}")
+    print(f"  Database: {DB_PATH}")
     print("=" * 60 + "\n")
     app.run(host="0.0.0.0", port=DASHBOARD_PORT, debug=False)

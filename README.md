@@ -20,7 +20,7 @@ A lightweight, platform-agnostic dashboard for monitoring AI agent status in orc
 ### Docker (Recommended)
 
 ```bash
-# Run with persistent CSV storage
+# Run with persistent SQLite storage
 docker run -d \
   -p 5050:5050 \
   -v $(pwd)/data:/data \
@@ -46,7 +46,8 @@ Environment variables:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DASHBOARD_PORT` | `5050` | Port to run the dashboard |
-| `CSV_PATH` | `./agent_status.csv` | Path to the status CSV file |
+| `DB_PATH` | `./agent_status.db` | Path to the SQLite database file |
+| `CSV_PATH` | (legacy) | Path to legacy CSV file for auto-import on first run |
 | `DASHBOARD_TITLE` | `Agent Status Dashboard` | Title shown in the header |
 | `STALE_THRESHOLD_MINUTES` | `30` | Minutes before a "working" agent is marked stale |
 | `DASHBOARD_LOGO_SVG` | *(robot icon)* | Custom SVG markup for the header logo |
@@ -89,6 +90,14 @@ curl -X POST http://localhost:5050/api/update/MyAgent/error
 
 > **Note:** The returned `agent` field is the *canonical* (normalized) name — see
 > [Agent Naming Convention](#agent-naming-convention) below.
+
+### Export Agent Status as CSV
+
+```bash
+GET /api/export/csv
+```
+
+Downloads the complete status log as a CSV file with columns: `timestamp,agent_name,status`.
 
 ### Agent Naming Convention
 
@@ -141,7 +150,7 @@ GET /api/status
 }
 ```
 
-> **Note:** The `stale` field (boolean) appears only on agents whose last CSV status was `working` but whose last update is older than `STALE_THRESHOLD_MINUTES`. These agents are displayed as "idle (stale)" in the UI.
+> **Note:** The `stale` field (boolean) appears only on agents whose last database status was `working` but whose last update is older than `STALE_THRESHOLD_MINUTES`. These agents are displayed as "idle (stale)" in the UI.
 
 ### Get Concurrency Data
 
@@ -204,23 +213,24 @@ See `dashboard-instructions.md` for machine-readable agent instructions.
 
 ## Data Persistence
 
-The CSV file (`/data/agent_status.csv` in Docker) is the single source of truth:
-- On startup, existing CSV is read to recover agent list and state
-- CSV is never reseeded on restart—only new status updates are appended
-- Mount as a volume to persist across container restarts
+Status data is stored in a **SQLite database** (`/data/agent_status.db` in Docker):
+- On startup, the database is created automatically if it doesn't exist
+- An indexed `status_log` table stores all status changes (append-only)
+- **Write-Ahead Logging (WAL) mode** ensures data durability and concurrent read access
+- Indexes on `(agent_name, timestamp)` optimize queries
+- If a legacy CSV file exists at `CSV_PATH` on first run, it is automatically imported into the database
+- Mount `/data` as a volume to persist the database across container restarts
 
 ## FAQ / Troubleshooting
 
-### `PermissionError: [Errno 13] Permission denied` when writing to CSV
+### `PermissionError: [Errno 13] Permission denied` when writing to database
 
-The container runs as a non-root user (UID 1000). If your mounted data directory or CSV file is owned by a different user, writes will fail.
+The container runs as a non-root user (UID 1000). If your mounted data directory is owned by a different user, database writes will fail.
 
-**Fix:** Make the data directory and CSV writable before starting the container:
+**Fix:** Make the data directory writable before starting the container:
 ```bash
 mkdir -p ./data
 chmod 777 ./data
-# If a CSV already exists:
-chmod 666 ./data/agent_status.csv
 ```
 
 ### `no image found in image index for architecture "arm64"` when pulling
@@ -237,9 +247,9 @@ Check the container logs for the root cause:
 docker logs agent-dashboard
 ```
 
-The most common cause is the CSV permission issue above. Other possibilities:
+The most common cause is the database permission issue above. Other possibilities:
 - Invalid status value (must be one of: `working`, `waiting`, `completed`, `idle`, `blocked`, `error`)
-- Corrupted CSV file — delete it and restart; agents will re-register on their next POST
+- Corrupted database file — delete `agent_status.db` and restart; agents will re-register on their next POST
 
 ### Container starts but no agents appear
 
@@ -248,10 +258,12 @@ Agents self-register — the dashboard starts empty by design. Post a status upd
 curl -X POST http://localhost:5050/api/update/TestAgent/idle
 ```
 
-If you previously had data, make sure you mounted the correct directory containing your `agent_status.csv`:
+If you previously had data, make sure you mounted the correct directory containing your `agent_status.db`:
 ```bash
 docker run -d -p 5050:5050 -v /path/to/your/data:/data ghcr.io/andybaran/agent-status-dashboard:latest
 ```
+
+To restore from a legacy CSV, mount a directory containing both `agent_status.csv` (legacy) and ensure `CSV_PATH` is set (e.g. `CSV_PATH=/data/agent_status.csv`). The database will be auto-populated on first startup.
 
 ### Port 5050 is already in use
 

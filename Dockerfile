@@ -20,7 +20,7 @@ COPY --from=builder /build/deps /usr/local/lib/python3.13/site-packages
 # Copy application
 COPY dashboard.py .
 
-# Create data directory for CSV mount
+# Create data directory for database mount
 RUN mkdir -p /data && chown appuser:appuser /data
 
 # Switch to non-root user
@@ -29,6 +29,7 @@ USER appuser
 # Environment defaults
 ARG APP_VERSION=dev
 ENV DASHBOARD_PORT=5050
+ENV DB_PATH=/data/agent_status.db
 ENV CSV_PATH=/data/agent_status.csv
 ENV DASHBOARD_TITLE="Agent Status Dashboard"
 ENV APP_VERSION=${APP_VERSION}

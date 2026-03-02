@@ -62,7 +62,8 @@ All configuration is via environment variables — no config files.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DASHBOARD_PORT` | `5050` | Port to listen on |
-| `CSV_PATH` | `./agent_status.csv` | Path to the status CSV file |
+| `DB_PATH` | `./agent_status.db` | Path to the SQLite database file |
+| `CSV_PATH` | (legacy) | Path to legacy CSV file for auto-import on first run |
 | `DASHBOARD_TITLE` | `Agent Status Dashboard` | Header title text |
 | `STALE_THRESHOLD_MINUTES` | `30` | Minutes before a "working" agent is marked stale |
 | `DASHBOARD_LOGO_SVG` | *(robot icon)* | Custom SVG for the header logo |
@@ -73,6 +74,7 @@ All configuration is via environment variables — no config files.
 ```
 POST /api/update/<agent_name>/<status>   — Update agent status
 GET  /api/status                          — All agent statuses + activity log
+GET  /api/export/csv                      — Export full status log as CSV
 GET  /api/concurrency                     — Time-series concurrency data for chart
 GET  /                                    — Dashboard HTML page
 ```
@@ -84,13 +86,20 @@ acronyms preserved). The API response returns the canonical name.
 
 ## Data Model
 
-The CSV file is the single source of truth. Schema: `timestamp,agent_name,status`
+Status data is stored in a **SQLite database** with a single `status_log` table:
 
+**Schema:** `id (INTEGER PRIMARY KEY), timestamp (TEXT), agent_name (TEXT), status (TEXT)`
+
+**Characteristics:**
 - Rows are **append-only** (no updates/deletes in normal operation)
-- `read_csv()` normalizes agent names on read for historical data compatibility
-- `write_status()` appends one row per status change
-- `get_current_status()` computes current state by scanning all rows per agent
-- Staleness is computed at read time, not written to CSV
+- Indexed on `(agent_name, timestamp)` for efficient queries
+- Write-Ahead Logging (WAL) mode ensures durability and allows concurrent reads
+- `timestamp` is always UTC ISO 8601 format
+- On startup, if a legacy CSV file exists, it is auto-imported into the database
+- `read_database()` normalizes agent names on read for historical data compatibility
+- `write_status()` inserts one row per status change
+- `get_current_status()` queries the latest row per agent
+- Staleness is computed at read time, not persisted in the database
 
 ## Development
 
@@ -196,10 +205,13 @@ This will trigger the workflow to build and push Docker images with version tags
 - Colors read from CSS custom properties via `getComputedStyle()` for theme awareness
 - Data cached in `window.__lastConcData` for theme-switch re-renders
 
-### CSV DictReader Gotcha
-- If CSV rows have more columns than the header, Python's `DictReader` creates a
-  `None` key. Flask's `jsonify` cannot serialize `None` keys → 500 error
-- `read_csv()` strips `None` keys: `{k: v for k, v in row.items() if k is not None}`
+### SQLite Connection Handling
+
+To ensure thread safety with Flask's `is_request_context()` behavior:
+- Each route creates a short-lived SQLite connection
+- Connections are closed immediately after use
+- Do NOT store connection objects globally or in thread-local storage
+- All queries use parameterized statements to prevent SQL injection
 
 ## Common Tasks
 

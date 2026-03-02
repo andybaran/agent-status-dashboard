@@ -4,6 +4,7 @@
 
 Single-file Flask dashboard (`dashboard.py`, ~1120 lines) for monitoring AI agent
 status. Platform-agnostic. Agents self-register via `POST /api/update/<name>/<status>`.
+Data stored in **SQLite database** (auto-created). Legacy CSV auto-import supported.
 Docker image: `ghcr.io/andybaran/agent-status-dashboard:latest`.
 
 ## Build & Run
@@ -27,7 +28,8 @@ No separate static files, no frontend build step, no JS framework.
 - CSS uses `--ds-*` custom properties (generic design tokens, not vendor-specific)
 - Light and dark themes via `[data-theme="dark"]` CSS selector
 - Canvas-based chart (no charting library)
-- CSV file is the data store (append-only, `timestamp,agent_name,status`)
+- **SQLite database** stores all status changes (auto-created, WAL mode, indexed)
+- Legacy CSV auto-import on first startup if `CSV_PATH` is set
 - Agent names normalized server-side (`normalize_agent_name()`)
 - Staleness detection computed at read time, not persisted
 
@@ -42,7 +44,7 @@ No separate static files, no frontend build step, no JS framework.
 
 ## Config (env vars)
 
-`DASHBOARD_PORT` (5050), `CSV_PATH`, `DASHBOARD_TITLE`, `STALE_THRESHOLD_MINUTES` (30),
+`DASHBOARD_PORT` (5050), `DB_PATH` (./agent_status.db), `CSV_PATH` (legacy import), `DASHBOARD_TITLE`, `STALE_THRESHOLD_MINUTES` (30),
 `DASHBOARD_LOGO_SVG`, `DASHBOARD_ACRONYMS`
 
 ## CI/CD
