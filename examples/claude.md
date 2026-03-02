@@ -36,7 +36,7 @@ All three carry forward until replaced.
 3. **Report `completed`** when your task finishes successfully.
 4. **Report `error`** if your task fails — then describe the failure.
 5. **Never leave status as `working`** when you are done. Agents stuck in `working`
-   are marked stale after 30 minutes.
+   are marked stale after 10 minutes.
 
 ### Agent Name
 

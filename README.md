@@ -84,7 +84,7 @@ Environment variables:
 | `DB_PATH` | `./agent_status.db` | Path to the SQLite database file |
 | `CSV_PATH` | (legacy) | Path to legacy CSV file for auto-import on first run |
 | `DASHBOARD_TITLE` | `Agent Status Dashboard` | Title shown in the header |
-| `STALE_THRESHOLD_MINUTES` | `30` | Minutes before a "working" agent is marked stale |
+| `STALE_THRESHOLD_MINUTES` | `10` | Minutes before a "working" agent is marked stale |
 | `DASHBOARD_LOGO_SVG` | *(robot icon)* | Custom SVG markup for the header logo |
 | `DASHBOARD_ACRONYMS` | `UI,API,CI,CD,HCP,VSO,CSI,LDAP,AWS,GitOps` | Comma-separated acronyms preserved during name normalization |
 
@@ -148,13 +148,29 @@ curl -X POST "http://localhost:5050/api/update/My%20Agent/error"
 > **Note:** The returned `agent` field is the *canonical* (normalized) name — see
 > [Agent Naming Convention](#agent-naming-convention) below.
 
+### Reset Agents
+
+```bash
+POST /api/reset                # Reset ALL currently-working agents to idle
+POST /api/reset/<agent_name>   # Reset a specific agent to idle
+```
+
+Marks agents as `idle` by inserting a new status row. Only affects agents whose current status is `working`. Useful for cleaning up ghost agents after a session ends or an agent crashes.
+
+**Response:**
+```json
+{"ok": true, "reset_agents": ["My Agent", "Other Agent"], "count": 2}
+```
+
+A "Reset All" button is also available in the dashboard UI header.
+
 ### Export Agent Status as CSV
 
 ```bash
 GET /api/export/csv
 ```
 
-Downloads the complete status log as a CSV file with columns: `timestamp,agent_name,status`.
+Downloads the complete status log as a CSV file with columns: `timestamp,agent_name,status,task_name,task_url,model`.
 
 ### Agent Naming Convention
 
@@ -345,7 +361,7 @@ curl -X POST http://localhost:5050/api/update/My%20Agent%20Name/working
 
 ### Agents still show "working" long after they stopped
 
-If an agent crashes or the orchestrator session ends without posting a final `idle` or `completed` status, the dashboard will continue to show the agent as "working." After `STALE_THRESHOLD_MINUTES` (default: 30), the dashboard automatically marks these agents as **idle (stale)** with a warning tag. To adjust the threshold:
+If an agent crashes or the orchestrator session ends without posting a final `idle` or `completed` status, the dashboard will continue to show the agent as "working." After `STALE_THRESHOLD_MINUTES` (default: 10), the dashboard automatically marks these agents as **idle (stale)** with a warning tag. To adjust the threshold:
 ```bash
 docker run -d -p 5050:5050 -e STALE_THRESHOLD_MINUTES=60 ...
 ```

@@ -83,19 +83,28 @@ Response:
 }
 ```
 
-> If an agent's last status is `working` but its last update is older than `STALE_THRESHOLD_MINUTES` (default: 30), the API returns `"status": "idle"` with `"stale": true`.
+> If an agent's last status is `working` but its last update is older than `STALE_THRESHOLD_MINUTES` (default: 10), the API returns `"status": "idle"` with `"stale": true`.
 
 ### Get Concurrency Data
 ```bash
 GET /api/concurrency
 ```
 
+### Reset Agents
+```bash
+POST /api/reset                # Reset ALL working agents to idle
+POST /api/reset/<agent_name>   # Reset a specific agent to idle
+```
+
+Only affects agents currently in `working` status. Use for session-end cleanup
+or to clear ghost agents.
+
 ## Recommended Workflow
 
 1. Post `working` when starting a task
 2. Post `waiting` if blocked on external dependency
 3. Post `completed` on success OR `error` on failure
-4. **Always post `idle` or `completed` when done** — agents that remain in `working` status will be marked as stale after 30 minutes
+4. **Always post `idle` or `completed` when done** — agents that remain in `working` status will be marked as stale after 10 minutes
 
 Agents self-register on first status update. No pre-configuration needed.
 

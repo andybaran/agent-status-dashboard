@@ -95,7 +95,7 @@ Every agent **must** follow this lifecycle:
 ```
 
 ⚠️ **Critical:** Never leave your status as `working` when you are finished.
-Agents stuck in `working` status are flagged as stale after 30 minutes.
+Agents stuck in `working` status are flagged as stale after 10 minutes.
 
 ### Multi-Agent Orchestration
 

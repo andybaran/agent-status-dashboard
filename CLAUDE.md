@@ -45,7 +45,7 @@ No separate static files, no frontend build step, no JS framework.
 
 ## Config (env vars)
 
-`DASHBOARD_PORT` (5050), `DB_PATH` (./agent_status.db), `CSV_PATH` (legacy import), `DASHBOARD_TITLE`, `STALE_THRESHOLD_MINUTES` (30),
+`DASHBOARD_PORT` (5050), `DB_PATH` (./agent_status.db), `CSV_PATH` (legacy import), `DASHBOARD_TITLE`, `STALE_THRESHOLD_MINUTES` (10),
 `DASHBOARD_LOGO_SVG`, `DASHBOARD_ACRONYMS`
 
 ## CI/CD

@@ -84,8 +84,8 @@ def normalize_agent_name(name):
 
 # Staleness threshold (seconds). If an agent's last update is older than this
 # and its status is still "working", the dashboard displays it as "idle (stale)".
-# Configurable via STALE_THRESHOLD_MINUTES env var (default: 30 minutes).
-STALE_THRESHOLD = int(os.environ.get("STALE_THRESHOLD_MINUTES", "30")) * 60
+# Configurable via STALE_THRESHOLD_MINUTES env var (default: 10 minutes).
+STALE_THRESHOLD = int(os.environ.get("STALE_THRESHOLD_MINUTES", "10")) * 60
 
 # Status colors
 STATUS_COLORS = {
@@ -1198,16 +1198,22 @@ def get_current_status():
         current[name] = {"status": status, "timestamp": ts_str}
 
         # Use new task info if provided, otherwise carry forward previous
+        # Exception: terminal statuses (idle, completed, error) with no explicit
+        # task should clear the carried-forward values — the agent is done.
         row_task = row["task_name"] or ""
         row_url = row["task_url"] or ""
         row_model = row["model"] or ""
+        terminal = status in ("idle", "completed", "error")
         if row_task:
             current[name]["task_name"] = row_task
             current[name]["task_url"] = row_url
+        elif terminal:
+            current[name]["task_name"] = ""
+            current[name]["task_url"] = ""
         else:
             current[name]["task_name"] = prev_task
             current[name]["task_url"] = prev_url
-        current[name]["model"] = row_model if row_model else prev_model
+        current[name]["model"] = row_model if row_model else ("" if terminal else prev_model)
 
     # Add any still-working time up to now
     now = datetime.now(timezone.utc).timestamp()
@@ -1387,13 +1393,14 @@ def api_export_csv():
     """Export all status data as a CSV download."""
     import io
     conn = get_db()
-    rows = conn.execute("SELECT timestamp, agent_name, status FROM status_log ORDER BY id").fetchall()
+    rows = conn.execute("SELECT timestamp, agent_name, status, task_name, task_url, model FROM status_log ORDER BY id").fetchall()
     conn.close()
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["timestamp", "agent_name", "status"])
+    writer.writerow(["timestamp", "agent_name", "status", "task_name", "task_url", "model"])
     for row in rows:
-        writer.writerow([row["timestamp"], row["agent_name"], row["status"]])
+        writer.writerow([row["timestamp"], row["agent_name"], row["status"], 
+                        row["task_name"] or "", row["task_url"] or "", row["model"] or ""])
     return Response(output.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": "attachment; filename=agent_status.csv"})
 
