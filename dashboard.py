@@ -6,15 +6,16 @@ A lightweight Flask web application that displays real-time agent status
 from a CSV file. Agents register dynamically by posting status updates.
 The dashboard auto-refreshes every 5 seconds.
 
-Styled to be compliant with HashiCorp branding and the Helios Design System
-(HDS) design tokens — colors, typography, spacing, elevation, and component
-patterns mirror HCP Terraform UI conventions.
+Styled with a professional design token system — colors, typography, spacing,
+elevation, and component patterns follow modern SaaS dashboard conventions.
 
 Configuration via environment variables:
     DASHBOARD_PORT  - Port to run on (default: 5050)
     CSV_PATH        - Path to status CSV file (default: ./agent_status.csv)
     DASHBOARD_TITLE - Title shown in the dashboard (default: Agent Status Dashboard)
     STALE_THRESHOLD_MINUTES - Minutes before a "working" agent is marked stale (default: 30)
+    DASHBOARD_LOGO_SVG - Custom SVG logo (if empty, uses default robot icon)
+    DASHBOARD_ACRONYMS - Comma-separated acronyms to preserve (e.g. "UI,API,CI,CD,AWS")
 
 Usage:
     pip install flask
@@ -39,11 +40,25 @@ DASHBOARD_TITLE = os.environ.get("DASHBOARD_TITLE", "Agent Status Dashboard")
 
 VALID_STATUSES = {"working", "waiting", "completed", "idle", "blocked", "error"}
 
-# Acronyms that .title() mangles — maps wrong form to correct form
-ACRONYMS = {
-    "Ui": "UI", "Gitops": "GitOps", "Api": "API", "Ci": "CI", "Cd": "CD",
-    "Hcp": "HCP", "Vso": "VSO", "Csi": "CSI", "Ldap": "LDAP", "Aws": "AWS",
-}
+# Acronyms that .title() mangles — maps wrong form to correct form.
+# Override via DASHBOARD_ACRONYMS env var (comma-separated, e.g. "UI,API,CI,CD,AWS").
+# Each acronym is stored as title-case key -> uppercase value (e.g. "Ui" -> "UI").
+def _build_acronyms():
+    env_val = os.environ.get("DASHBOARD_ACRONYMS", "").strip()
+    if env_val:
+        acronyms = {}
+        for acr in env_val.split(","):
+            acr = acr.strip()
+            if acr:
+                acronyms[acr.title()] = acr.upper()
+        return acronyms
+    # Default set if env var is not set
+    return {
+        "Ui": "UI", "Gitops": "GitOps", "Api": "API", "Ci": "CI", "Cd": "CD",
+        "Hcp": "HCP", "Vso": "VSO", "Csi": "CSI", "Ldap": "LDAP", "Aws": "AWS",
+    }
+
+ACRONYMS = _build_acronyms()
 
 
 def normalize_agent_name(name):
@@ -65,38 +80,47 @@ def normalize_agent_name(name):
 # Configurable via STALE_THRESHOLD_MINUTES env var (default: 30 minutes).
 STALE_THRESHOLD = int(os.environ.get("STALE_THRESHOLD_MINUTES", "30")) * 60
 
-# HDS-aligned status colors
+# Status colors
 STATUS_COLORS = {
-    "working":   "#008a22",  # HDS foreground-success
-    "waiting":   "#b35900",  # HDS foreground-warning
-    "completed": "#0c56e9",  # HDS foreground-action
-    "idle":      "#656a76",  # HDS foreground-faint
-    "blocked":   "#c00005",  # HDS foreground-critical
-    "error":     "#c00005",  # HDS foreground-critical
+    "working":   "#008a22",  # foreground-success
+    "waiting":   "#b35900",  # foreground-warning
+    "completed": "#0c56e9",  # foreground-action
+    "idle":      "#656a76",  # foreground-faint
+    "blocked":   "#c00005",  # foreground-critical
+    "error":     "#c00005",  # foreground-critical
 }
 
 STATUS_SURFACES = {
-    "working":   "#e4f7e6",  # HDS surface-success
-    "waiting":   "#fff3d6",  # HDS surface-warning
-    "completed": "#e1ecff",  # HDS surface-highlight
-    "idle":      "#f5f5f6",  # HDS surface-faint
-    "blocked":   "#ffe0e0",  # HDS surface-critical
-    "error":     "#ffe0e0",  # HDS surface-critical
+    "working":   "#e4f7e6",  # surface-success
+    "waiting":   "#fff3d6",  # surface-warning
+    "completed": "#e1ecff",  # surface-highlight
+    "idle":      "#f5f5f6",  # surface-faint
+    "blocked":   "#ffe0e0",  # surface-critical
+    "error":     "#ffe0e0",  # surface-critical
 }
 
 STATUS_BORDERS = {
-    "working":   "#008a22",  # HDS border-success
-    "waiting":   "#b35900",  # HDS border-warning
-    "completed": "#0c56e9",  # HDS border-action
-    "idle":      "#d2d5db",  # HDS border-primary
-    "blocked":   "#c00005",  # HDS border-critical
-    "error":     "#c00005",  # HDS border-critical
+    "working":   "#008a22",  # border-success
+    "waiting":   "#b35900",  # border-warning
+    "completed": "#0c56e9",  # border-action
+    "idle":      "#d2d5db",  # border-primary
+    "blocked":   "#c00005",  # border-critical
+    "error":     "#c00005",  # border-critical
 }
 
-# HashiCorp logo SVG (simplified mark)
-HASHICORP_LOGO_SVG = '''<svg width="28" height="28" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M21.625 0L14.375 4.18v11.773l-7.25-4.178V4.18L0 8.358v19.284L7.125 31.82V20.047l7.25 4.18v11.773L21.625 31.82V20.047L28.75 24.225V13.953L36 9.775 21.625 0z" fill="white"/>
+# Default logo SVG (robot/agent icon)
+DEFAULT_LOGO_SVG = '''<svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="4" y="8" width="16" height="12" rx="2" stroke="white" stroke-width="1.5" fill="none"/>
+  <circle cx="9" cy="13" r="1.5" fill="white"/>
+  <circle cx="15" cy="13" r="1.5" fill="white"/>
+  <path d="M9 17h6" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M12 8V5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="12" cy="4" r="1.5" fill="white"/>
+  <path d="M2 12h2M20 12h2" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
 </svg>'''
+
+# Custom logo from environment variable (if set)
+LOGO_SVG = os.environ.get("DASHBOARD_LOGO_SVG", "").strip() or DEFAULT_LOGO_SVG
 
 DASHBOARD_HTML = """
 <!DOCTYPE html>
@@ -106,149 +130,149 @@ DASHBOARD_HTML = """
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }}</title>
   <style>
-    /* ── HDS Design Token Mapping ──────────────────────────────── */
+    /* ── Design Token Mapping ──────────────────────────────── */
     :root {
-      /* Foreground (text) — HDS semantic colors */
-      --hds-foreground-strong:   #0c0c0e;
-      --hds-foreground-primary:  #3b3d45;
-      --hds-foreground-faint:    #656a76;
-      --hds-foreground-disabled: #8c909c;
-      --hds-foreground-action:   #0c56e9;
-      --hds-foreground-success:  #008a22;
-      --hds-foreground-warning:  #b35900;
-      --hds-foreground-critical: #c00005;
+      /* Foreground (text) — Semantic colors */
+      --ds-foreground-strong:   #0c0c0e;
+      --ds-foreground-primary:  #3b3d45;
+      --ds-foreground-faint:    #656a76;
+      --ds-foreground-disabled: #8c909c;
+      --ds-foreground-action:   #0c56e9;
+      --ds-foreground-success:  #008a22;
+      --ds-foreground-warning:  #b35900;
+      --ds-foreground-critical: #c00005;
 
       /* Surface (background) */
-      --hds-surface-primary:     #ffffff;
-      --hds-surface-faint:       #f5f5f6;
-      --hds-surface-strong:      #ebebed;
-      --hds-surface-interactive-hover: #f9fafb;
+      --ds-surface-primary:     #ffffff;
+      --ds-surface-faint:       #f5f5f6;
+      --ds-surface-strong:      #ebebed;
+      --ds-surface-interactive-hover: #f9fafb;
 
       /* Border */
-      --hds-border-primary:      #d2d5db;
-      --hds-border-faint:        #ebebed;
-      --hds-border-strong:       #8c909c;
+      --ds-border-primary:      #d2d5db;
+      --ds-border-faint:        #ebebed;
+      --ds-border-strong:       #8c909c;
 
       /* Brand */
-      --hds-brand-hashicorp:     #000000;
+      --ds-brand-primary:       #000000;
 
-      /* App header — matches HCP dark header */
-      --hds-header-bg:           #1d1f30;
-      --hds-header-fg:           #ffffff;
+      /* App header */
+      --ds-header-bg:           #1d1f30;
+      --ds-header-fg:           #ffffff;
 
       /* Chart — theme-aware canvas colors */
-      --hds-chart-grid:          #ebebed;
-      --hds-chart-label:         #656a76;
-      --hds-chart-title:         #3b3d45;
-      --hds-chart-line:          #0c56e9;
-      --hds-chart-fill-start:    rgba(12, 86, 233, 0.18);
-      --hds-chart-fill-end:      rgba(12, 86, 233, 0.02);
-      --hds-chart-now:           #b35900;
+      --ds-chart-grid:          #ebebed;
+      --ds-chart-label:         #656a76;
+      --ds-chart-title:         #3b3d45;
+      --ds-chart-line:          #0c56e9;
+      --ds-chart-fill-start:    rgba(12, 86, 233, 0.18);
+      --ds-chart-fill-end:      rgba(12, 86, 233, 0.02);
+      --ds-chart-now:           #b35900;
 
-      /* Typography — HDS system font stacks */
-      --hds-font-text: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-      --hds-font-code: ui-monospace, SFMono-Regular, Menlo, Consolas, Monaco, monospace;
+      /* Typography — System font stacks */
+      --ds-font-text: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      --ds-font-code: ui-monospace, SFMono-Regular, Menlo, Consolas, Monaco, monospace;
 
-      /* Spacing — HDS scale */
-      --hds-space-100: 8px;
-      --hds-space-150: 12px;
-      --hds-space-200: 16px;
-      --hds-space-300: 24px;
-      --hds-space-400: 32px;
-      --hds-space-500: 48px;
+      /* Spacing — Design scale */
+      --ds-space-100: 8px;
+      --ds-space-150: 12px;
+      --ds-space-200: 16px;
+      --ds-space-300: 24px;
+      --ds-space-400: 32px;
+      --ds-space-500: 48px;
 
-      /* Border radius — HDS scale */
-      --hds-radius-small:  5px;
-      --hds-radius-medium: 6px;
-      --hds-radius-large:  8px;
+      /* Border radius — Design scale */
+      --ds-radius-small:  5px;
+      --ds-radius-medium: 6px;
+      --ds-radius-large:  8px;
 
-      /* Elevation / Shadows — HDS scale */
-      --hds-elevation-low:  0 1px 2px 0 rgba(0,0,0,0.06);
-      --hds-elevation-mid:  0 2px 4px 0 rgba(0,0,0,0.06), 0 4px 12px -2px rgba(0,0,0,0.08);
-      --hds-elevation-high: 0 4px 6px 0 rgba(0,0,0,0.06), 0 12px 20px -4px rgba(0,0,0,0.10);
+      /* Elevation / Shadows — Design scale */
+      --ds-elevation-low:  0 1px 2px 0 rgba(0,0,0,0.06);
+      --ds-elevation-mid:  0 2px 4px 0 rgba(0,0,0,0.06), 0 4px 12px -2px rgba(0,0,0,0.08);
+      --ds-elevation-high: 0 4px 6px 0 rgba(0,0,0,0.06), 0 12px 20px -4px rgba(0,0,0,0.10);
     }
 
-    /* ── Dark Theme — HDS dark palette ──────────────────────────── */
+    /* ── Dark Theme — Dark palette ──────────────────────────── */
     [data-theme="dark"] {
-      --hds-foreground-strong:   #f0f0f2;
-      --hds-foreground-primary:  #c2c5cc;
-      --hds-foreground-faint:    #8c909c;
-      --hds-foreground-disabled: #656a76;
-      --hds-foreground-action:   #5990ff;
-      --hds-foreground-success:  #2EB67D;
-      --hds-foreground-warning:  #ecb22e;
-      --hds-foreground-critical: #f47174;
+      --ds-foreground-strong:   #f0f0f2;
+      --ds-foreground-primary:  #c2c5cc;
+      --ds-foreground-faint:    #8c909c;
+      --ds-foreground-disabled: #656a76;
+      --ds-foreground-action:   #5990ff;
+      --ds-foreground-success:  #2EB67D;
+      --ds-foreground-warning:  #ecb22e;
+      --ds-foreground-critical: #f47174;
 
-      --hds-surface-primary:     #1a1c2b;
-      --hds-surface-faint:       #12131f;
-      --hds-surface-strong:      #252739;
-      --hds-surface-interactive-hover: #1f2133;
+      --ds-surface-primary:     #1a1c2b;
+      --ds-surface-faint:       #12131f;
+      --ds-surface-strong:      #252739;
+      --ds-surface-interactive-hover: #1f2133;
 
-      --hds-border-primary:      #363850;
-      --hds-border-faint:        #2a2c40;
-      --hds-border-strong:       #4a4d66;
+      --ds-border-primary:      #363850;
+      --ds-border-faint:        #2a2c40;
+      --ds-border-strong:       #4a4d66;
 
-      --hds-brand-hashicorp:     #ffffff;
+      --ds-brand-primary:       #ffffff;
 
-      --hds-header-bg:           #0e0f1a;
-      --hds-header-fg:           #f0f0f2;
+      --ds-header-bg:           #0e0f1a;
+      --ds-header-fg:           #f0f0f2;
 
-      --hds-chart-grid:          #2a2c40;
-      --hds-chart-label:         #8c909c;
-      --hds-chart-title:         #c2c5cc;
-      --hds-chart-line:          #5990ff;
-      --hds-chart-fill-start:    rgba(89, 144, 255, 0.22);
-      --hds-chart-fill-end:      rgba(89, 144, 255, 0.03);
-      --hds-chart-now:           #ecb22e;
+      --ds-chart-grid:          #2a2c40;
+      --ds-chart-label:         #8c909c;
+      --ds-chart-title:         #c2c5cc;
+      --ds-chart-line:          #5990ff;
+      --ds-chart-fill-start:    rgba(89, 144, 255, 0.22);
+      --ds-chart-fill-end:      rgba(89, 144, 255, 0.03);
+      --ds-chart-now:           #ecb22e;
 
-      --hds-elevation-low:  0 1px 2px 0 rgba(0,0,0,0.3);
-      --hds-elevation-mid:  0 2px 4px 0 rgba(0,0,0,0.3), 0 4px 12px -2px rgba(0,0,0,0.4);
-      --hds-elevation-high: 0 4px 6px 0 rgba(0,0,0,0.3), 0 12px 20px -4px rgba(0,0,0,0.5);
+      --ds-elevation-low:  0 1px 2px 0 rgba(0,0,0,0.3);
+      --ds-elevation-mid:  0 2px 4px 0 rgba(0,0,0,0.3), 0 4px 12px -2px rgba(0,0,0,0.4);
+      --ds-elevation-high: 0 4px 6px 0 rgba(0,0,0,0.3), 0 12px 20px -4px rgba(0,0,0,0.5);
     }
 
     /* ── Reset ─────────────────────────────────────────────────── */
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: var(--hds-font-text);
+      font-family: var(--ds-font-text);
       font-size: 0.875rem;
       line-height: 1.25rem;
-      color: var(--hds-foreground-primary);
-      background: var(--hds-surface-faint);
+      color: var(--ds-foreground-primary);
+      background: var(--ds-surface-faint);
       min-height: 100vh;
     }
 
-    /* ── App Header — mirrors HCP Terraform top bar ────────────── */
+    /* ── App Header ────────────────────────────────────────────── */
     .app-header {
       height: 60px;
-      background: var(--hds-header-bg);
+      background: var(--ds-header-bg);
       display: flex;
       align-items: center;
-      padding: 0 var(--hds-space-300);
-      gap: var(--hds-space-200);
-      color: var(--hds-header-fg);
-      box-shadow: var(--hds-elevation-low);
+      padding: 0 var(--ds-space-300);
+      gap: var(--ds-space-200);
+      color: var(--ds-header-fg);
+      box-shadow: var(--ds-elevation-low);
       position: sticky;
       top: 0;
       z-index: 100;
     }
-    .app-header .logo { display: flex; align-items: center; gap: var(--hds-space-100); }
+    .app-header .logo { display: flex; align-items: center; gap: var(--ds-space-100); }
     .app-header .logo-divider {
       width: 1px; height: 24px;
       background: rgba(255,255,255,0.2);
-      margin: 0 var(--hds-space-100);
+      margin: 0 var(--ds-space-100);
     }
     .app-header h1 {
       font-size: 1rem;
       font-weight: 600;
-      color: var(--hds-header-fg);
+      color: var(--ds-header-fg);
       letter-spacing: -0.01em;
     }
     .app-header .header-right {
       margin-left: auto;
       display: flex;
       align-items: center;
-      gap: var(--hds-space-200);
+      gap: var(--ds-space-200);
       font-size: 0.8125rem;
       color: rgba(255,255,255,0.7);
     }
@@ -261,11 +285,11 @@ DASHBOARD_HTML = """
     .pulse { animation: pulse 2s ease-in-out infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-    /* ── Theme Toggle — HDS-style icon button ────────────────── */
+    /* ── Theme Toggle — Icon button ──────────────────────────── */
     .theme-toggle {
       background: transparent;
       border: 1px solid rgba(255,255,255,0.2);
-      border-radius: var(--hds-radius-small);
+      border-radius: var(--ds-radius-small);
       color: rgba(255,255,255,0.7);
       cursor: pointer;
       padding: 6px 8px;
@@ -293,29 +317,29 @@ DASHBOARD_HTML = """
     [data-theme="dark"] .theme-toggle .icon-auto { display: none; }
 
     /* ── Page Content ──────────────────────────────────────────── */
-    .page-content { padding: var(--hds-space-300); max-width: 1440px; margin: 0 auto; }
+    .page-content { padding: var(--ds-space-300); max-width: 1440px; margin: 0 auto; }
 
-    /* ── Stats Bar — HDS counter badges ────────────────────────── */
+    /* ── Stats Bar — Counter badges ────────────────────────────── */
     .stats-bar {
       display: flex;
-      gap: var(--hds-space-200);
-      margin-bottom: var(--hds-space-300);
+      gap: var(--ds-space-200);
+      margin-bottom: var(--ds-space-300);
       flex-wrap: wrap;
       align-items: center;
     }
     .stat-card {
-      background: var(--hds-surface-primary);
-      border: 1px solid var(--hds-border-primary);
-      border-radius: var(--hds-radius-medium);
-      padding: var(--hds-space-150) var(--hds-space-200);
-      box-shadow: var(--hds-elevation-low);
+      background: var(--ds-surface-primary);
+      border: 1px solid var(--ds-border-primary);
+      border-radius: var(--ds-radius-medium);
+      padding: var(--ds-space-150) var(--ds-space-200);
+      box-shadow: var(--ds-elevation-low);
       display: flex;
       flex-direction: column;
       min-width: 140px;
     }
     .stat-card .stat-label {
       font-size: 0.75rem;
-      color: var(--hds-foreground-faint);
+      color: var(--ds-foreground-faint);
       font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 0.04em;
@@ -324,75 +348,75 @@ DASHBOARD_HTML = """
     .stat-card .stat-value {
       font-size: 1.25rem;
       font-weight: 700;
-      color: var(--hds-foreground-strong);
+      color: var(--ds-foreground-strong);
     }
-    .stat-card .stat-value.accent { color: var(--hds-foreground-action); }
+    .stat-card .stat-value.accent { color: var(--ds-foreground-action); }
 
     .refresh-btn {
       margin-left: auto;
-      background: var(--hds-surface-primary);
-      color: var(--hds-foreground-action);
-      border: 1px solid var(--hds-border-primary);
-      padding: var(--hds-space-100) var(--hds-space-200);
-      border-radius: var(--hds-radius-small);
+      background: var(--ds-surface-primary);
+      color: var(--ds-foreground-action);
+      border: 1px solid var(--ds-border-primary);
+      padding: var(--ds-space-100) var(--ds-space-200);
+      border-radius: var(--ds-radius-small);
       cursor: pointer;
-      font-family: var(--hds-font-text);
+      font-family: var(--ds-font-text);
       font-size: 0.8125rem;
       font-weight: 500;
       transition: all 0.15s;
       display: flex; align-items: center; gap: 6px;
     }
     .refresh-btn:hover {
-      background: var(--hds-surface-faint);
-      border-color: var(--hds-foreground-action);
+      background: var(--ds-surface-faint);
+      border-color: var(--ds-foreground-action);
     }
     .refresh-btn:focus-visible {
       outline: none;
       box-shadow: inset 0 0 0 1px #0c56e9, 0 0 0 3px #5990ff;
     }
 
-    /* ── Agent Cards Grid — HDS Card pattern ───────────────────── */
+    /* ── Agent Cards Grid — Card pattern ───────────────────────── */
     .section-heading {
       font-size: 1rem;
       font-weight: 600;
-      color: var(--hds-foreground-strong);
-      margin-bottom: var(--hds-space-200);
+      color: var(--ds-foreground-strong);
+      margin-bottom: var(--ds-space-200);
       display: flex;
       align-items: center;
-      gap: var(--hds-space-100);
+      gap: var(--ds-space-100);
     }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: var(--hds-space-200);
-      margin-bottom: var(--hds-space-400);
+      gap: var(--ds-space-200);
+      margin-bottom: var(--ds-space-400);
     }
     .card {
-      background: var(--hds-surface-primary);
-      border: 1px solid var(--hds-border-primary);
-      border-radius: var(--hds-radius-large);
-      padding: var(--hds-space-200);
-      box-shadow: var(--hds-elevation-low);
+      background: var(--ds-surface-primary);
+      border: 1px solid var(--ds-border-primary);
+      border-radius: var(--ds-radius-large);
+      padding: var(--ds-space-200);
+      box-shadow: var(--ds-elevation-low);
       transition: box-shadow 0.15s, border-color 0.15s;
-      border-left: 3px solid var(--hds-border-primary);
+      border-left: 3px solid var(--ds-border-primary);
     }
     .card:hover {
-      box-shadow: var(--hds-elevation-mid);
-      border-color: var(--hds-border-strong);
+      box-shadow: var(--ds-elevation-mid);
+      border-color: var(--ds-border-strong);
     }
     .card-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: var(--hds-space-150);
+      margin-bottom: var(--ds-space-150);
     }
     .agent-name {
       font-weight: 600;
       font-size: 0.875rem;
-      color: var(--hds-foreground-strong);
+      color: var(--ds-foreground-strong);
     }
 
-    /* ── HDS Badge-style status pill ───────────────────────────── */
+    /* ── Badge-style status pill ───────────────────────────────── */
     .status-badge {
       display: inline-flex;
       align-items: center;
@@ -416,9 +440,9 @@ DASHBOARD_HTML = """
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--hds-foreground-warning);
-      background: var(--hds-surface-faint);
-      border: 1px solid var(--hds-foreground-warning);
+      color: var(--ds-foreground-warning);
+      background: var(--ds-surface-faint);
+      border: 1px solid var(--ds-foreground-warning);
       border-radius: 3px;
       padding: 1px 5px;
       margin-left: 6px;
@@ -426,20 +450,20 @@ DASHBOARD_HTML = """
     }
     .card-meta {
       font-size: 0.8125rem;
-      color: var(--hds-foreground-faint);
+      color: var(--ds-foreground-faint);
       display: flex; flex-direction: column; gap: 4px;
     }
-    .card-meta strong { font-weight: 500; color: var(--hds-foreground-primary); }
+    .card-meta strong { font-weight: 500; color: var(--ds-foreground-primary); }
 
-    /* ── Activity Log Table — HDS Table pattern ────────────────── */
+    /* ── Activity Log Table — Table pattern ────────────────────── */
     .log-section {
-      margin-top: var(--hds-space-300);
+      margin-top: var(--ds-space-300);
     }
     .log-container {
-      background: var(--hds-surface-primary);
-      border: 1px solid var(--hds-border-primary);
-      border-radius: var(--hds-radius-large);
-      box-shadow: var(--hds-elevation-low);
+      background: var(--ds-surface-primary);
+      border: 1px solid var(--ds-border-primary);
+      border-radius: var(--ds-radius-large);
+      box-shadow: var(--ds-elevation-low);
       overflow: hidden;
     }
     .log-container .table-scroll {
@@ -452,70 +476,70 @@ DASHBOARD_HTML = """
       font-size: 0.8125rem;
     }
     th {
-      padding: 10px var(--hds-space-200);
+      padding: 10px var(--ds-space-200);
       text-align: left;
-      background: var(--hds-surface-faint);
-      color: var(--hds-foreground-strong);
+      background: var(--ds-surface-faint);
+      color: var(--ds-foreground-strong);
       font-weight: 600;
       font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      border-bottom: 1px solid var(--hds-border-primary);
+      border-bottom: 1px solid var(--ds-border-primary);
       position: sticky;
       top: 0;
       z-index: 1;
     }
     td {
-      padding: 8px var(--hds-space-200);
-      border-bottom: 1px solid var(--hds-border-faint);
-      color: var(--hds-foreground-primary);
+      padding: 8px var(--ds-space-200);
+      border-bottom: 1px solid var(--ds-border-faint);
+      color: var(--ds-foreground-primary);
     }
-    tr:hover td { background: var(--hds-surface-interactive-hover); }
-    td.ts { font-family: var(--hds-font-code); font-size: 0.75rem; color: var(--hds-foreground-faint); }
+    tr:hover td { background: var(--ds-surface-interactive-hover); }
+    td.ts { font-family: var(--ds-font-code); font-size: 0.75rem; color: var(--ds-foreground-faint); }
 
     /* ── Chart Section ─────────────────────────────────────────── */
-    .chart-section { margin-top: var(--hds-space-300); }
+    .chart-section { margin-top: var(--ds-space-300); }
     .chart-container {
-      background: var(--hds-surface-primary);
-      border: 1px solid var(--hds-border-primary);
-      border-radius: var(--hds-radius-large);
-      box-shadow: var(--hds-elevation-low);
-      padding: var(--hds-space-200);
+      background: var(--ds-surface-primary);
+      border: 1px solid var(--ds-border-primary);
+      border-radius: var(--ds-radius-large);
+      box-shadow: var(--ds-elevation-low);
+      padding: var(--ds-space-200);
     }
 
     .no-agents {
       text-align: center;
-      padding: var(--hds-space-500);
-      color: var(--hds-foreground-faint);
+      padding: var(--ds-space-500);
+      color: var(--ds-foreground-faint);
       font-size: 0.875rem;
     }
 
     .last-update-text {
       font-size: 0.75rem;
-      color: var(--hds-foreground-faint);
-      margin-top: var(--hds-space-200);
+      color: var(--ds-foreground-faint);
+      margin-top: var(--ds-space-200);
       text-align: right;
     }
   </style>
   <script>
     /* ── Theme Init (runs before render to prevent flash) ─── */
     (function() {
-      var pref = localStorage.getItem('hds-theme') || 'system';
+      var pref = localStorage.getItem('ds-theme') || 'system';
       function resolve(p) {
         if (p === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         return p;
       }
       document.documentElement.setAttribute('data-theme', resolve(pref));
-      window.__hdsPref = pref;
+      window.__dsPref = pref;
     })();
   </script>
 </head>
 <body>
 
-  <!-- ── App Header — HCP Terraform-style top bar ─────────────── -->
+  <!-- ── App Header ──────────────────────────────────────────── -->
   <div class="app-header">
     <div class="logo">
-      """ + HASHICORP_LOGO_SVG + """
+      {{ logo_svg | safe }}
       <div class="logo-divider"></div>
       <h1>{{ title }}</h1>
     </div>
@@ -590,21 +614,21 @@ DASHBOARD_HTML = """
     }
     function applyTheme(pref) {
       document.documentElement.setAttribute('data-theme', resolveTheme(pref));
-      localStorage.setItem('hds-theme', pref);
-      window.__hdsPref = pref;
+      localStorage.setItem('ds-theme', pref);
+      window.__dsPref = pref;
     }
     function cycleTheme() {
       var order = ['light', 'dark', 'system'];
-      var idx = order.indexOf(window.__hdsPref || 'system');
+      var idx = order.indexOf(window.__dsPref || 'system');
       applyTheme(order[(idx + 1) % 3]);
       if (typeof renderConcurrencyChart === 'function' && window.__lastConcData) renderConcurrencyChart(window.__lastConcData);
     }
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
-      if ((window.__hdsPref || 'system') === 'system') applyTheme('system');
+      if ((window.__dsPref || 'system') === 'system') applyTheme('system');
     });
     function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
 
-    /* ── HDS-aligned status colors (theme-aware) ──────────── */
+    /* ── Status colors (theme-aware) ──────────────────────── */
     const STATUS_COLORS_LIGHT = {
       working:   '#008a22',
       waiting:   '#b35900',
@@ -711,7 +735,7 @@ DASHBOARD_HTML = """
       const body = document.getElementById('logBody');
       body.innerHTML = '';
       if (rows.length === 0) {
-        body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--hds-foreground-faint)">No activity yet</td></tr>';
+        body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--ds-foreground-faint)">No activity yet</td></tr>';
         return;
       }
       rows.forEach(r => {
@@ -737,13 +761,13 @@ DASHBOARD_HTML = """
 
       /* Read theme-aware chart colors from CSS custom properties */
       const cs = getComputedStyle(document.documentElement);
-      const cGrid     = cs.getPropertyValue('--hds-chart-grid').trim();
-      const cLabel    = cs.getPropertyValue('--hds-chart-label').trim();
-      const cTitle    = cs.getPropertyValue('--hds-chart-title').trim();
-      const cLine     = cs.getPropertyValue('--hds-chart-line').trim();
-      const cFillS    = cs.getPropertyValue('--hds-chart-fill-start').trim();
-      const cFillE    = cs.getPropertyValue('--hds-chart-fill-end').trim();
-      const cNow      = cs.getPropertyValue('--hds-chart-now').trim();
+      const cGrid     = cs.getPropertyValue('--ds-chart-grid').trim();
+      const cLabel    = cs.getPropertyValue('--ds-chart-label').trim();
+      const cTitle    = cs.getPropertyValue('--ds-chart-title').trim();
+      const cLine     = cs.getPropertyValue('--ds-chart-line').trim();
+      const cFillS    = cs.getPropertyValue('--ds-chart-fill-start').trim();
+      const cFillE    = cs.getPropertyValue('--ds-chart-fill-end').trim();
+      const cNow      = cs.getPropertyValue('--ds-chart-now').trim();
 
       const points = data.points || [];
       const maxAgents = Math.max(data.max_agents || 1, 1);
@@ -756,7 +780,7 @@ DASHBOARD_HTML = """
 
       ctx.clearRect(0, 0, W, H);
 
-      /* Grid lines — HDS border-faint */
+      /* Grid lines — border-faint */
       ctx.strokeStyle = cGrid;
       ctx.lineWidth = 1;
       for (let i = 0; i <= maxAgents; i++) {
@@ -809,7 +833,7 @@ DASHBOARD_HTML = """
         return;
       }
 
-      /* Now-line — HDS warning colour */
+      /* Now-line — warning colour */
       const nowFrac = (data.t_now - tMin) / span;
       const nowPx = pad.left + nowFrac * plotW;
       ctx.save();
@@ -824,7 +848,7 @@ DASHBOARD_HTML = """
       ctx.fillText('now', nowPx, pad.top - 10);
       ctx.restore();
 
-      /* Stepped area fill — HDS action colour (blue) */
+      /* Stepped area fill — action colour (blue) */
       ctx.beginPath();
       let firstX = pad.left + ((points[0].t - tMin) / span) * plotW;
       let firstY = pad.top + plotH - (points[0].count / maxAgents) * plotH;
@@ -994,7 +1018,7 @@ def get_current_status():
 
 @app.route("/")
 def index():
-    return render_template_string(DASHBOARD_HTML, title=DASHBOARD_TITLE)
+    return render_template_string(DASHBOARD_HTML, title=DASHBOARD_TITLE, logo_svg=LOGO_SVG)
 
 
 def get_max_concurrent_agents():

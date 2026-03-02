@@ -1,6 +1,6 @@
 # Agent Status Dashboard
 
-A lightweight, real-time dashboard for monitoring AI agent status in orchestration workflows. Agents self-register dynamically by posting status updates—no pre-configuration required.
+A lightweight, platform-agnostic dashboard for monitoring AI agent status in orchestration workflows. Works with any AI platform — GitHub Copilot, Claude, OpenAI Assistants, LangChain, CrewAI, AutoGen, or custom agents. Agents self-register dynamically by posting status updates—no pre-configuration required.
 
 > **For AI agents / orchestrators:** See [`dashboard-instructions.md`](dashboard-instructions.md) for a concise, machine-readable API reference designed to be included in agent system prompts or tool definitions.
 
@@ -12,7 +12,7 @@ A lightweight, real-time dashboard for monitoring AI agent status in orchestrati
 - **Activity Log** — Last 100 status changes with timestamps
 - **Concurrency Chart** — Canvas-based visualization of concurrent working agents over time
 - **Staleness Detection** — Agents stuck in "working" beyond a configurable threshold are automatically shown as "idle (stale)" with a warning tag
-- **Light/Dark Theme** — HDS-compliant theme toggle (light, dark, system) with `localStorage` persistence
+- **Light/Dark Theme** — Theme toggle (light, dark, system) with `localStorage` persistence
 - **No External Dependencies** — Pure Python/Flask with vanilla JavaScript
 
 ## Quick Start
@@ -49,10 +49,12 @@ Environment variables:
 | `CSV_PATH` | `./agent_status.csv` | Path to the status CSV file |
 | `DASHBOARD_TITLE` | `Agent Status Dashboard` | Title shown in the header |
 | `STALE_THRESHOLD_MINUTES` | `30` | Minutes before a "working" agent is marked stale |
+| `DASHBOARD_LOGO_SVG` | *(robot icon)* | Custom SVG markup for the header logo |
+| `DASHBOARD_ACRONYMS` | `UI,API,CI,CD,HCP,VSO,CSI,LDAP,AWS,GitOps` | Comma-separated acronyms preserved during name normalization |
 
 Example:
 ```bash
-DASHBOARD_PORT=8080 DASHBOARD_TITLE="My Agents" STALE_THRESHOLD_MINUTES=60 python dashboard.py
+DASHBOARD_PORT=8080 DASHBOARD_TITLE="My Agents" STALE_THRESHOLD_MINUTES=60 DASHBOARD_ACRONYMS="UI,API,CI,CD" python dashboard.py
 ```
 
 ## API Reference
@@ -106,7 +108,7 @@ formatting variants collapse to a single identity:
 2. Replace hyphens (`-`) and underscores (`_`) with spaces
 3. Collapse multiple spaces
 4. Title-case each word
-5. Restore known acronyms: UI, API, CI, CD, HCP, VSO, CSI, LDAP, AWS, GitOps
+5. Restore known acronyms (configurable via `DASHBOARD_ACRONYMS`): UI, API, CI, CD, HCP, VSO, CSI, LDAP, AWS, GitOps
 
 **Best practice:** Post names in `Title Case` with spaces (e.g. `Research Agent`)
 to avoid any ambiguity. Numbered suffixes (e.g. `Python Agent 01`) are preserved
