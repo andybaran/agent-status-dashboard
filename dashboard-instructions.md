@@ -27,10 +27,12 @@ Valid statuses: `working`, `waiting`, `completed`, `idle`, `blocked`, `error`
 |-----------|-------------|
 | `task` | Name/description of the current task |
 | `task_url` | URL to the task (e.g. GitHub issue, Jira ticket, GitLab MR) |
+| `model` | AI model being used (e.g. Claude Sonnet 4.5, GPT-4.1) |
 
 Task info is displayed on the agent's card. If `task_url` is provided, the task
-name is rendered as a clickable link. Task info carries forward across status
-updates until a new `task` value is provided.
+name is rendered as a clickable link. Model is displayed below the task in
+italic. All three carry forward across status updates until a new value is
+provided.
 
 **Naming convention:** Use `Title Case` with spaces (e.g. `Research Agent`).
 Names are normalized server-side — hyphens, underscores, and casing differences
@@ -48,6 +50,9 @@ curl -X POST "http://localhost:5050/api/update/MyAgent/working?task=Implement+fe
 # Start working on a GitHub issue
 curl -X POST "http://localhost:5050/api/update/MyAgent/working?task=Fix+auth+bug&task_url=https://github.com/org/repo/issues/42"
 
+# Report the model being used
+curl -X POST "http://localhost:5050/api/update/MyAgent/working?task=Fix+auth+bug&model=Claude+Sonnet+4.5"
+
 # Agent with spaces (URL-encode)
 curl -X POST http://localhost:5050/api/update/Terraform%20Agent/working
 
@@ -60,7 +65,7 @@ curl -X POST http://localhost:5050/api/update/MyAgent/error
 
 Response:
 ```json
-{"ok": true, "agent": "MyAgent", "status": "working", "task": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42"}
+{"ok": true, "agent": "MyAgent", "status": "working", "task": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42", "model": "Claude Sonnet 4.5"}
 ```
 
 ### Get All Agent Status
@@ -72,7 +77,7 @@ Response:
 ```json
 {
   "current": {
-    "MyAgent": {"status": "working", "timestamp": "2026-01-15T10:30:00Z", "working_seconds": 120, "task_name": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42"}
+    "MyAgent": {"status": "working", "timestamp": "2026-01-15T10:30:00Z", "working_seconds": 120, "task_name": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42", "model": "Claude Sonnet 4.5"}
   },
   "log": [...]
 }

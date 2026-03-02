@@ -23,9 +23,11 @@ POST {DASHBOARD_URL}/api/update/{agent_name}/{status}
 |-----------|-------------|
 | `task` | Name/description of the current task |
 | `task_url` | URL to the task (e.g. GitHub issue, Jira ticket) |
+| `model` | AI model being used (e.g. Claude Sonnet 4.5, GPT-4.1) |
 
 Task info is displayed on the agent's dashboard card. If `task_url` is provided,
-it renders as a clickable link. Task info carries forward until replaced.
+it renders as a clickable link. Model is displayed below the task in italic.
+All three carry forward until replaced.
 
 ### Rules
 
@@ -56,6 +58,9 @@ curl -s -X POST "http://localhost:5050/api/update/My%20Agent/working?task=Implem
 
 # Starting work on a GitHub issue
 curl -s -X POST "http://localhost:5050/api/update/My%20Agent/working?task=Fix+auth+bug&task_url=https://github.com/org/repo/issues/42"
+
+# Report the model you are using
+curl -s -X POST "http://localhost:5050/api/update/My%20Agent/working?task=Fix+auth+bug&model=Claude+Opus+4.6"
 
 # Waiting on dependency
 curl -s -X POST http://localhost:5050/api/update/My%20Agent/waiting

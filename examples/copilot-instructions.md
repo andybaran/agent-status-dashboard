@@ -34,9 +34,11 @@ POST /api/update/<agent_name>/<status>
 |-----------|-------------|
 | `task` | Name/description of the current task |
 | `task_url` | URL to the task (e.g. GitHub issue, Jira ticket, GitLab MR) |
+| `model` | AI model being used (e.g. Claude Sonnet 4.5, GPT-4.1) |
 
 Task info is displayed on the agent's dashboard card. If `task_url` is provided,
-it renders as a clickable link. Task info carries forward until replaced.
+it renders as a clickable link. Model is displayed below the task in italic.
+All three carry forward until replaced.
 
 ### Naming Convention
 
@@ -60,6 +62,9 @@ curl -s -X POST "http://localhost:5050/api/update/My%20Agent%20Name/working?task
 
 # Start working on a GitHub issue
 curl -s -X POST "http://localhost:5050/api/update/My%20Agent%20Name/working?task=Fix+auth+bug&task_url=https://github.com/org/repo/issues/42" > /dev/null
+
+# Report the model being used
+curl -s -X POST "http://localhost:5050/api/update/My%20Agent%20Name/working?task=Fix+auth+bug&model=Claude+Sonnet+4.5" > /dev/null
 
 # Waiting on something
 curl -s -X POST http://localhost:5050/api/update/My%20Agent%20Name/waiting > /dev/null
