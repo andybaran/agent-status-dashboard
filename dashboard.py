@@ -420,6 +420,24 @@ DASHBOARD_HTML = """
       color: #fff;
     }
     .sort-btn .arrow { font-size: 0.65rem; margin-left: 2px; }
+    .reset-btn {
+      background: var(--ds-surface-primary);
+      border: 1px solid var(--ds-border-primary);
+      border-radius: var(--ds-radius-small);
+      color: var(--ds-foreground-faint);
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: var(--ds-font-text);
+      line-height: 1.4;
+      margin-left: var(--ds-space-100);
+    }
+    .reset-btn:hover {
+      border-color: #dc3545;
+      color: #dc3545;
+      background: rgba(220, 53, 69, 0.05);
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -627,6 +645,7 @@ DASHBOARD_HTML = """
         <button class="sort-btn" data-sort="status" onclick="setSort('status')">Status</button>
         <button class="sort-btn" data-sort="timestamp" onclick="setSort('timestamp')">Last Update</button>
         <button class="sort-btn" data-sort="working" onclick="setSort('working')">Working Time</button>
+        <button class="reset-btn" onclick="resetAllAgents()">Reset All</button>
       </div>
     </div>
     <div class="grid" id="agentCards"></div>
@@ -770,6 +789,23 @@ DASHBOARD_HTML = """
         }
       });
       if (lastAgentsData) renderCards(lastAgentsData);
+    }
+
+    function resetAllAgents() {
+      if (!confirm('Mark all currently-working agents as idle?')) {
+        return;
+      }
+      fetch('/api/reset', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok) {
+            console.log(`Reset ${data.count} agent(s):`, data.reset_agents);
+            fetchData();
+          } else {
+            console.error('Reset failed:', data.error);
+          }
+        })
+        .catch(err => console.error('Reset error:', err));
     }
 
     function sortEntries(entries) {
@@ -1298,6 +1334,52 @@ def api_update(agent_name, status):
     if model:
         resp["model"] = model
     return jsonify(resp)
+
+
+@app.route("/api/reset", methods=["POST"])
+def api_reset_all():
+    """Mark all currently-working agents as idle by inserting new idle status rows."""
+    current_status = get_current_status()
+    reset_agents = []
+    
+    for agent_name, info in current_status.items():
+        if info["status"] == "working":
+            write_status(agent_name, "idle")
+            reset_agents.append(agent_name)
+    
+    return jsonify({
+        "ok": True,
+        "reset_agents": reset_agents,
+        "count": len(reset_agents)
+    })
+
+
+@app.route("/api/reset/<agent_name>", methods=["POST"])
+def api_reset_agent(agent_name):
+    """Mark a specific agent as idle by inserting a new idle status row."""
+    canonical = normalize_agent_name(agent_name)
+    current_status = get_current_status()
+    
+    if canonical not in current_status:
+        return jsonify({
+            "ok": False,
+            "error": f"Agent '{canonical}' not found"
+        }), 404
+    
+    if current_status[canonical]["status"] != "working":
+        return jsonify({
+            "ok": True,
+            "reset_agents": [],
+            "count": 0,
+            "message": f"Agent '{canonical}' was not working"
+        })
+    
+    write_status(canonical, "idle")
+    return jsonify({
+        "ok": True,
+        "reset_agents": [canonical],
+        "count": 1
+    })
 
 
 @app.route("/api/export/csv")
