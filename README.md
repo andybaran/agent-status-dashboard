@@ -8,6 +8,7 @@ A lightweight, platform-agnostic dashboard for monitoring AI agent status in orc
 
 - **Dynamic Agent Registration** — Agents appear automatically when they post their first status update
 - **Real-time Status Cards** — Visual status for each agent with color-coded badges
+- **Task Tracking** — Each card shows the agent's current task, with clickable links to GitHub/GitLab issues
 - **Working Time Tracking** — Tracks total time each agent has spent in "working" status
 - **Activity Log** — Last 100 status changes with timestamps
 - **Concurrency Chart** — Canvas-based visualization of concurrent working agents over time
@@ -101,10 +102,27 @@ POST /api/update/<agent_name>/<status>
 
 **Valid statuses:** `working`, `waiting`, `completed`, `idle`, `blocked`, `error`
 
+**Optional query parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `task` | Name/description of the current task |
+| `task_url` | URL to the task (e.g. GitHub issue, Jira ticket) |
+
+Task info is displayed on the agent's card. If `task_url` is provided, the task
+name is rendered as a clickable link. Task info carries forward across status
+updates until a new `task` value is provided.
+
 **Examples:**
 ```bash
 # Start a task
 curl -X POST http://localhost:5050/api/update/MyAgent/working
+
+# Start a task with a name
+curl -X POST "http://localhost:5050/api/update/MyAgent/working?task=Implement+login+form"
+
+# Start a task linked to a GitHub issue
+curl -X POST "http://localhost:5050/api/update/MyAgent/working?task=Fix+auth+bug&task_url=https://github.com/org/repo/issues/42"
 
 # Agent name with spaces (URL-encode)
 curl -X POST http://localhost:5050/api/update/Terraform%20Agent/working
@@ -118,7 +136,7 @@ curl -X POST http://localhost:5050/api/update/MyAgent/error
 
 **Response:**
 ```json
-{"ok": true, "agent": "My Agent", "status": "working"}
+{"ok": true, "agent": "My Agent", "status": "working", "task": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42"}
 ```
 
 > **Note:** The returned `agent` field is the *canonical* (normalized) name — see
@@ -167,7 +185,9 @@ GET /api/status
     "MyAgent": {
       "status": "working",
       "timestamp": "2026-01-15T10:30:00Z",
-      "working_seconds": 120
+      "working_seconds": 120,
+      "task_name": "Fix auth bug",
+      "task_url": "https://github.com/org/repo/issues/42"
     },
     "StaleAgent": {
       "status": "idle",

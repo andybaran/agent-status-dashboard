@@ -97,11 +97,13 @@ DASHBOARD_URL=http://myhost:8080 python multi_agent_demo.py
 ### What to Watch For
 
 1. **Agent cards** appear as each agent starts — watch the status badges change from `working` → `waiting` → `completed`
-2. **Concurrency chart** shows the number of simultaneously active agents rising and falling
-3. **QA Agent** briefly shows an `error` status before retrying and completing
-4. **Sort controls** — try sorting by Status to see all "working" agents grouped together
-5. **Activity log** — every status transition is recorded with a timestamp
-6. **Working time** — each card tracks cumulative time spent in "working" status
+2. **Task names** are shown on each card (e.g. "Fetch raw data from sources", "Train prediction model")
+3. **Concurrency chart** shows the number of simultaneously active agents rising and falling
+4. **QA Agent** briefly shows an `error` status before retrying and completing
+5. **Sort controls** — try sorting by Status to see all "working" agents grouped together
+6. **Activity log** — every status transition is recorded with a timestamp
+7. **Working time** — each card tracks cumulative time spent in "working" status
+8. **Total Duration vs Total Working Time** — compare wall-clock time to summed agent time to see the parallelism benefit
 
 ### Environment Variables
 

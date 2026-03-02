@@ -28,6 +28,16 @@ POST /api/update/<agent_name>/<status>
 | `idle` | No active task — use between tasks if you remain available |
 | `blocked` | Cannot proceed and need intervention |
 
+**Optional query parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `task` | Name/description of the current task |
+| `task_url` | URL to the task (e.g. GitHub issue, Jira ticket, GitLab MR) |
+
+Task info is displayed on the agent's dashboard card. If `task_url` is provided,
+it renders as a clickable link. Task info carries forward until replaced.
+
 ### Naming Convention
 
 Use a **consistent, descriptive `Title Case` name** for the entire session:
@@ -44,6 +54,12 @@ always report the same name so the dashboard can track it correctly.
 ```bash
 # Start working
 curl -s -X POST http://localhost:5050/api/update/My%20Agent%20Name/working > /dev/null
+
+# Start working on a specific task
+curl -s -X POST "http://localhost:5050/api/update/My%20Agent%20Name/working?task=Implement+feature+X" > /dev/null
+
+# Start working on a GitHub issue
+curl -s -X POST "http://localhost:5050/api/update/My%20Agent%20Name/working?task=Fix+auth+bug&task_url=https://github.com/org/repo/issues/42" > /dev/null
 
 # Waiting on something
 curl -s -X POST http://localhost:5050/api/update/My%20Agent%20Name/waiting > /dev/null
@@ -63,14 +79,14 @@ curl -s -X POST http://localhost:5050/api/update/My%20Agent%20Name/error > /dev/
 Every agent **must** follow this lifecycle:
 
 ```
-1. POST .../working         ← before starting any task
+1. POST .../working?task=My+Task  ← before starting any task
 2. (do the work)
-3. POST .../waiting          ← if blocked on input/dependency
+3. POST .../waiting               ← if blocked on input/dependency
 4. (receive input)
-5. POST .../working          ← resume after wait
+5. POST .../working               ← resume after wait
 6. (finish work)
-7. POST .../completed        ← on success
-   POST .../error            ← on failure
+7. POST .../completed             ← on success
+   POST .../error                 ← on failure
 ```
 
 ⚠️ **Critical:** Never leave your status as `working` when you are finished.

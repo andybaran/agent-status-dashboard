@@ -17,6 +17,16 @@ POST {DASHBOARD_URL}/api/update/{agent_name}/{status}
 
 **Valid statuses:** `working`, `waiting`, `completed`, `idle`, `blocked`, `error`
 
+**Optional query parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `task` | Name/description of the current task |
+| `task_url` | URL to the task (e.g. GitHub issue, Jira ticket) |
+
+Task info is displayed on the agent's dashboard card. If `task_url` is provided,
+it renders as a clickable link. Task info carries forward until replaced.
+
 ### Rules
 
 1. **Always report `working`** before starting any task.
@@ -41,6 +51,12 @@ Bad: `agent1`, `my-agent`, `Claude`
 # Starting work
 curl -s -X POST http://localhost:5050/api/update/My%20Agent/working
 
+# Starting work on a specific task
+curl -s -X POST "http://localhost:5050/api/update/My%20Agent/working?task=Implement+login+form"
+
+# Starting work on a GitHub issue
+curl -s -X POST "http://localhost:5050/api/update/My%20Agent/working?task=Fix+auth+bug&task_url=https://github.com/org/repo/issues/42"
+
 # Waiting on dependency
 curl -s -X POST http://localhost:5050/api/update/My%20Agent/waiting
 
@@ -54,7 +70,7 @@ curl -s -X POST http://localhost:5050/api/update/My%20Agent/error
 ### Workflow Pattern
 
 ```
-Start task   →  POST .../working
+Start task   →  POST .../working?task=My+Task+Name
   ↓
 Do work...
   ↓

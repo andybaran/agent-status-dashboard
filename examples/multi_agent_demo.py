@@ -57,14 +57,20 @@ SPEED = float(os.environ.get("DEMO_SPEED", "1.0"))
 # Helpers
 # ---------------------------------------------------------------------------
 
-def post_status(agent_name: str, status: str) -> None:
+def post_status(agent_name: str, status: str, task: str = "", task_url: str = "") -> None:
     """Post a status update to the dashboard API."""
     encoded = urllib.parse.quote(agent_name, safe="")
     url = f"{DASHBOARD_URL}/api/update/{encoded}/{status}"
+    params = {}
+    if task:
+        params["task"] = task
+    if task_url:
+        params["task_url"] = task_url
     try:
-        r = requests.post(url, timeout=5)
+        r = requests.post(url, params=params, timeout=5)
         ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
-        print(f"  [{ts}]  {agent_name:20s} → {status:12s}  ({r.status_code})")
+        task_info = f"  [{task}]" if task else ""
+        print(f"  [{ts}]  {agent_name:20s} → {status:12s}{task_info}  ({r.status_code})")
     except requests.RequestException as exc:
         print(f"  ⚠  {agent_name}: {exc}", file=sys.stderr)
 
@@ -83,7 +89,7 @@ def jitter(base: float, variance: float = 0.3) -> float:
 # ---------------------------------------------------------------------------
 
 def orchestrator(barrier: threading.Barrier, done_event: threading.Event):
-    post_status("Orchestrator", "working")
+    post_status("Orchestrator", "working", task="Coordinate pipeline")
     sleep(jitter(5))
     # Signal all agents to start
     barrier.wait()
@@ -95,7 +101,7 @@ def orchestrator(barrier: threading.Barrier, done_event: threading.Event):
 
 def data_collector(barrier: threading.Barrier, collected: threading.Event):
     barrier.wait()
-    post_status("Data Collector", "working")
+    post_status("Data Collector", "working", task="Fetch raw data from sources")
     sleep(jitter(20))
     post_status("Data Collector", "waiting")   # "uploading" data
     sleep(jitter(5))
@@ -108,7 +114,7 @@ def data_validator(barrier: threading.Barrier, collected: threading.Event,
     barrier.wait()
     post_status("Data Validator", "waiting")
     collected.wait()
-    post_status("Data Validator", "working")
+    post_status("Data Validator", "working", task="Validate schema and integrity")
     sleep(jitter(15))
     validated.set()
     post_status("Data Validator", "completed")
@@ -119,7 +125,7 @@ def transform_agent(barrier: threading.Barrier, validated: threading.Event,
     barrier.wait()
     post_status("Transform Agent", "waiting")
     validated.wait()
-    post_status("Transform Agent", "working")
+    post_status("Transform Agent", "working", task="Normalize and transform data")
     sleep(jitter(20))
     transformed.set()
     post_status("Transform Agent", "completed")
@@ -130,7 +136,7 @@ def ml_trainer(barrier: threading.Barrier, transformed: threading.Event,
     barrier.wait()
     post_status("ML Trainer", "waiting")
     transformed.wait()
-    post_status("ML Trainer", "working")
+    post_status("ML Trainer", "working", task="Train prediction model")
     # Longest job — simulates model training
     sleep(jitter(30))
     trained.set()
@@ -142,12 +148,12 @@ def qa_agent(barrier: threading.Barrier, trained: threading.Event,
     barrier.wait()
     post_status("QA Agent", "waiting")
     trained.wait()
-    post_status("QA Agent", "working")
+    post_status("QA Agent", "working", task="Run quality checks")
     sleep(jitter(15))
     # Simulate a transient error + retry
-    post_status("QA Agent", "error")
+    post_status("QA Agent", "error", task="Run quality checks")
     sleep(jitter(4))
-    post_status("QA Agent", "working")
+    post_status("QA Agent", "working", task="Retry quality checks")
     sleep(jitter(10))
     qa_done.set()
     post_status("QA Agent", "completed")
@@ -158,7 +164,7 @@ def report_builder(barrier: threading.Barrier, qa_done: threading.Event,
     barrier.wait()
     post_status("Report Builder", "waiting")
     qa_done.wait()
-    post_status("Report Builder", "working")
+    post_status("Report Builder", "working", task="Generate final report")
     sleep(jitter(12))
     report_done.set()
     post_status("Report Builder", "completed")
@@ -169,7 +175,7 @@ def notifier(barrier: threading.Barrier, report_done: threading.Event,
     barrier.wait()
     post_status("Notifier", "waiting")
     report_done.wait()
-    post_status("Notifier", "working")
+    post_status("Notifier", "working", task="Send notifications")
     sleep(jitter(5))
     post_status("Notifier", "completed")
     # Signal orchestrator that the pipeline is complete
