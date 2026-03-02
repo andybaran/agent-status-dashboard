@@ -97,10 +97,11 @@ DASHBOARD_URL=http://myhost:8080 python multi_agent_demo.py
 ### What to Watch For
 
 1. **Agent cards** appear as each agent starts — watch the status badges change from `working` → `waiting` → `completed`
-2. **Task names** are shown on each card (e.g. "Fetch raw data from sources", "Train prediction model")
+2. **Task names as clickable links** — each card shows the task name linked to its GitHub issue/PR (e.g. click "Fetch raw data from sources" to open the issue)
 3. **AI model** is displayed below each task name in italic (e.g. "Claude Opus 4.6", "GPT-4.1")
-4. **Concurrency chart** shows the number of simultaneously active agents rising and falling
-5. **QA Agent** briefly shows an `error` status before retrying and completing
+4. **Heartbeat check-ins** — the ML Trainer (longest-running agent) sends periodic `working` re-posts to prevent staleness
+5. **Concurrency chart** shows the number of simultaneously active agents rising and falling
+6. **QA Agent** briefly shows an `error` status before retrying and completing
 6. **Sort controls** — try sorting by Status to see all "working" agents grouped together
 7. **Activity log** — every status transition is recorded with a timestamp
 8. **Working time** — each card tracks cumulative time spent in "working" status

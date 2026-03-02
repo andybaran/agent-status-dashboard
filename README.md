@@ -359,6 +359,33 @@ URL-encode agent names when calling the API. Spaces become `%20`:
 curl -X POST http://localhost:5050/api/update/My%20Agent%20Name/working
 ```
 
+### Task names are not clickable links on the dashboard
+
+The dashboard renders task names as **clickable links** only when the `task_url` query parameter is provided. If tasks appear as plain text, the agents are not sending `task_url` in their status updates.
+
+**Fix:** Include the `task_url` parameter when posting status updates:
+```bash
+# With task_url — task name becomes a clickable link
+curl -X POST "http://localhost:5050/api/update/My%20Agent/working?task=Fix+auth+bug&task_url=https://github.com/org/repo/issues/42"
+
+# Without task_url — task name is plain text (not recommended)
+curl -X POST "http://localhost:5050/api/update/My%20Agent/working?task=Fix+auth+bug"
+```
+
+When transitioning between statuses (e.g. `working` → `completed`), **re-send the same `task_url`** so the link remains visible on the card. See the example instruction templates in `examples/claude.md` and `examples/copilot-instructions.md` for the full list of supported URL patterns (GitHub, Jira, Linear, GitLab, etc.) and best practices.
+
+### Agents marked as stale while still actively working
+
+The dashboard marks agents as **idle (stale)** if their last status update is older than `STALE_THRESHOLD_MINUTES` (default: 10). This can happen to agents that are genuinely still working but haven't posted an update in a while.
+
+**Fix:** Agents performing long-running tasks should send **heartbeat check-ins every 2–3 minutes** by re-POSTing their current `working` status with the same parameters:
+```bash
+# Heartbeat — re-send the same working status to reset the staleness timer
+curl -X POST "http://localhost:5050/api/update/My%20Agent/working?task=Train+model&task_url=https://github.com/org/repo/issues/42&model=Claude+Opus+4.6"
+```
+
+Update your agent instruction files (`CLAUDE.md`, `.github/copilot-instructions.md`) to include this requirement. See the templates in `examples/` for ready-to-use guidance.
+
 ### Agents still show "working" long after they stopped
 
 If an agent crashes or the orchestrator session ends without posting a final `idle` or `completed` status, the dashboard will continue to show the agent as "working." After `STALE_THRESHOLD_MINUTES` (default: 10), the dashboard automatically marks these agents as **idle (stale)** with a warning tag. To adjust the threshold:

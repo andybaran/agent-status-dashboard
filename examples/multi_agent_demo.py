@@ -92,24 +92,29 @@ def jitter(base: float, variance: float = 0.3) -> float:
 # ---------------------------------------------------------------------------
 
 def orchestrator(barrier: threading.Barrier, done_event: threading.Event):
-    post_status("Orchestrator", "working", task="Coordinate pipeline", model="Claude Opus 4.6")
+    post_status("Orchestrator", "working", task="Coordinate pipeline",
+                task_url="https://github.com/acme/data-pipeline/issues/10", model="Claude Opus 4.6")
     sleep(jitter(5))
     # Signal all agents to start
     barrier.wait()
     # Wait for everyone else to finish
     done_event.wait()
     sleep(jitter(3))
-    post_status("Orchestrator", "completed")
+    post_status("Orchestrator", "completed", task="Coordinate pipeline",
+                task_url="https://github.com/acme/data-pipeline/issues/10")
 
 
 def data_collector(barrier: threading.Barrier, collected: threading.Event):
     barrier.wait()
-    post_status("Data Collector", "working", task="Fetch raw data from sources", model="Claude Sonnet 4.5")
+    post_status("Data Collector", "working", task="Fetch raw data from sources",
+                task_url="https://github.com/acme/data-pipeline/issues/11", model="Claude Sonnet 4.5")
     sleep(jitter(20))
-    post_status("Data Collector", "waiting")   # "uploading" data
+    post_status("Data Collector", "waiting",
+                task_url="https://github.com/acme/data-pipeline/issues/11")
     sleep(jitter(5))
     collected.set()
-    post_status("Data Collector", "completed")
+    post_status("Data Collector", "completed", task="Fetch raw data from sources",
+                task_url="https://github.com/acme/data-pipeline/issues/11")
 
 
 def data_validator(barrier: threading.Barrier, collected: threading.Event,
@@ -117,10 +122,12 @@ def data_validator(barrier: threading.Barrier, collected: threading.Event,
     barrier.wait()
     post_status("Data Validator", "waiting", model="Claude Haiku 4.5")
     collected.wait()
-    post_status("Data Validator", "working", task="Validate schema and integrity")
+    post_status("Data Validator", "working", task="Validate schema and integrity",
+                task_url="https://github.com/acme/data-pipeline/issues/12")
     sleep(jitter(15))
     validated.set()
-    post_status("Data Validator", "completed")
+    post_status("Data Validator", "completed", task="Validate schema and integrity",
+                task_url="https://github.com/acme/data-pipeline/issues/12")
 
 
 def transform_agent(barrier: threading.Barrier, validated: threading.Event,
@@ -128,10 +135,12 @@ def transform_agent(barrier: threading.Barrier, validated: threading.Event,
     barrier.wait()
     post_status("Transform Agent", "waiting", model="GPT-4.1")
     validated.wait()
-    post_status("Transform Agent", "working", task="Normalize and transform data")
+    post_status("Transform Agent", "working", task="Normalize and transform data",
+                task_url="https://github.com/acme/data-pipeline/pull/45")
     sleep(jitter(20))
     transformed.set()
-    post_status("Transform Agent", "completed")
+    post_status("Transform Agent", "completed", task="Normalize and transform data",
+                task_url="https://github.com/acme/data-pipeline/pull/45")
 
 
 def ml_trainer(barrier: threading.Barrier, transformed: threading.Event,
@@ -139,11 +148,21 @@ def ml_trainer(barrier: threading.Barrier, transformed: threading.Event,
     barrier.wait()
     post_status("ML Trainer", "waiting", model="Claude Opus 4.5")
     transformed.wait()
-    post_status("ML Trainer", "working", task="Train prediction model")
-    # Longest job — simulates model training
-    sleep(jitter(30))
+    post_status("ML Trainer", "working", task="Train prediction model",
+                task_url="https://github.com/acme/data-pipeline/issues/13")
+    # Longest job — simulates model training with heartbeat check-ins
+    sleep(jitter(10))
+    # Heartbeat: re-post working status to reset staleness timer
+    post_status("ML Trainer", "working", task="Train prediction model",
+                task_url="https://github.com/acme/data-pipeline/issues/13", model="Claude Opus 4.5")
+    sleep(jitter(10))
+    # Second heartbeat
+    post_status("ML Trainer", "working", task="Train prediction model",
+                task_url="https://github.com/acme/data-pipeline/issues/13", model="Claude Opus 4.5")
+    sleep(jitter(10))
     trained.set()
-    post_status("ML Trainer", "completed")
+    post_status("ML Trainer", "completed", task="Train prediction model",
+                task_url="https://github.com/acme/data-pipeline/issues/13")
 
 
 def qa_agent(barrier: threading.Barrier, trained: threading.Event,
@@ -151,15 +170,16 @@ def qa_agent(barrier: threading.Barrier, trained: threading.Event,
     barrier.wait()
     post_status("QA Agent", "waiting", model="Claude Haiku 4.5")
     trained.wait()
-    post_status("QA Agent", "working", task="Run quality checks")
+    qa_url = "https://github.com/acme/data-pipeline/issues/14"
+    post_status("QA Agent", "working", task="Run quality checks", task_url=qa_url)
     sleep(jitter(15))
     # Simulate a transient error + retry
-    post_status("QA Agent", "error", task="Run quality checks")
+    post_status("QA Agent", "error", task="Run quality checks", task_url=qa_url)
     sleep(jitter(4))
-    post_status("QA Agent", "working", task="Retry quality checks")
+    post_status("QA Agent", "working", task="Retry quality checks", task_url=qa_url)
     sleep(jitter(10))
     qa_done.set()
-    post_status("QA Agent", "completed")
+    post_status("QA Agent", "completed", task="Quality checks passed", task_url=qa_url)
 
 
 def report_builder(barrier: threading.Barrier, qa_done: threading.Event,
@@ -167,10 +187,12 @@ def report_builder(barrier: threading.Barrier, qa_done: threading.Event,
     barrier.wait()
     post_status("Report Builder", "waiting", model="Claude Sonnet 4.5")
     qa_done.wait()
-    post_status("Report Builder", "working", task="Generate final report")
+    post_status("Report Builder", "working", task="Generate final report",
+                task_url="https://github.com/acme/data-pipeline/issues/15")
     sleep(jitter(12))
     report_done.set()
-    post_status("Report Builder", "completed")
+    post_status("Report Builder", "completed", task="Generate final report",
+                task_url="https://github.com/acme/data-pipeline/issues/15")
 
 
 def notifier(barrier: threading.Barrier, report_done: threading.Event,
@@ -178,9 +200,11 @@ def notifier(barrier: threading.Barrier, report_done: threading.Event,
     barrier.wait()
     post_status("Notifier", "waiting", model="GPT-5 Mini")
     report_done.wait()
-    post_status("Notifier", "working", task="Send notifications")
+    post_status("Notifier", "working", task="Send notifications",
+                task_url="https://github.com/acme/data-pipeline/issues/16")
     sleep(jitter(5))
-    post_status("Notifier", "completed")
+    post_status("Notifier", "completed", task="Send notifications",
+                task_url="https://github.com/acme/data-pipeline/issues/16")
     # Signal orchestrator that the pipeline is complete
     done_event.set()
 
