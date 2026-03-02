@@ -596,20 +596,20 @@ DASHBOARD_HTML = """
     <!-- Stats Bar -->
     <div class="stats-bar">
       <div class="stat-card">
-        <span class="stat-label">Total Agents</span>
-        <span class="stat-value" id="totalAgents">0</span>
-      </div>
-      <div class="stat-card">
         <span class="stat-label">Currently Working</span>
         <span class="stat-value accent" id="workingAgents">0</span>
       </div>
       <div class="stat-card">
-        <span class="stat-label">Total Working Time</span>
-        <span class="stat-value" id="totalWorkingTime">0s</span>
-      </div>
-      <div class="stat-card">
         <span class="stat-label">Max Concurrent</span>
         <span class="stat-value accent" id="maxConcurrentAgents">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Total Agents</span>
+        <span class="stat-value" id="totalAgents">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Total Working Time</span>
+        <span class="stat-value" id="totalWorkingTime">0s</span>
       </div>
       <div class="stat-card">
         <span class="stat-label">Total Duration</span>
