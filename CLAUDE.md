@@ -2,8 +2,9 @@
 
 ## Quick Context
 
-Single-file Flask dashboard (`dashboard.py`, ~1120 lines) for monitoring AI agent
+Single-file Flask dashboard (`dashboard.py`, ~1390 lines) for monitoring AI agent
 status. Platform-agnostic. Agents self-register via `POST /api/update/<name>/<status>`.
+Optional query params: `task`, `task_url`, `model`.
 Data stored in **SQLite database** (auto-created). Legacy CSV auto-import supported.
 Docker image: `ghcr.io/andybaran/agent-status-dashboard:latest`.
 

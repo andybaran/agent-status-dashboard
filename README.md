@@ -119,25 +119,25 @@ provided.
 **Examples:**
 ```bash
 # Start a task
-curl -X POST http://localhost:5050/api/update/MyAgent/working
+curl -X POST "http://localhost:5050/api/update/My%20Agent/working"
 
 # Start a task with a name
-curl -X POST "http://localhost:5050/api/update/MyAgent/working?task=Implement+login+form"
+curl -X POST "http://localhost:5050/api/update/My%20Agent/working?task=Implement+login+form"
 
 # Start a task linked to a GitHub issue
-curl -X POST "http://localhost:5050/api/update/MyAgent/working?task=Fix+auth+bug&task_url=https://github.com/org/repo/issues/42"
+curl -X POST "http://localhost:5050/api/update/My%20Agent/working?task=Fix+auth+bug&task_url=https://github.com/org/repo/issues/42"
 
 # Report the model being used
-curl -X POST "http://localhost:5050/api/update/MyAgent/working?task=Fix+auth+bug&model=Claude+Sonnet+4.5"
+curl -X POST "http://localhost:5050/api/update/My%20Agent/working?task=Fix+auth+bug&model=Claude+Sonnet+4.5"
 
 # Agent name with spaces (URL-encode)
-curl -X POST http://localhost:5050/api/update/Terraform%20Agent/working
+curl -X POST "http://localhost:5050/api/update/Terraform%20Agent/working"
 
 # Complete successfully
-curl -X POST http://localhost:5050/api/update/MyAgent/completed
+curl -X POST "http://localhost:5050/api/update/My%20Agent/completed"
 
 # Report an error
-curl -X POST http://localhost:5050/api/update/MyAgent/error
+curl -X POST "http://localhost:5050/api/update/My%20Agent/error"
 ```
 
 **Response:**
@@ -188,7 +188,7 @@ GET /api/status
 ```json
 {
   "current": {
-    "MyAgent": {
+    "My Agent": {
       "status": "working",
       "timestamp": "2026-01-15T10:30:00Z",
       "working_seconds": 120,
@@ -196,7 +196,7 @@ GET /api/status
       "task_url": "https://github.com/org/repo/issues/42",
       "model": "Claude Sonnet 4.5"
     },
-    "StaleAgent": {
+    "Stale Agent": {
       "status": "idle",
       "timestamp": "2026-01-14T08:00:00Z",
       "working_seconds": 7200,
@@ -204,7 +204,7 @@ GET /api/status
     }
   },
   "log": [
-    {"timestamp": "2026-01-15T10:30:00Z", "agent_name": "MyAgent", "status": "working"},
+    {"timestamp": "2026-01-15T10:30:00Z", "agent_name": "My Agent", "status": "working"},
     ...
   ]
 }
@@ -244,7 +244,7 @@ For AI orchestration systems, have each agent call the API at task boundaries:
 import requests
 
 DASHBOARD_URL = "http://localhost:5050"
-AGENT_NAME = "MyAgent"
+AGENT_NAME = "My Agent"
 
 def update_status(status: str):
     requests.post(f"{DASHBOARD_URL}/api/update/{AGENT_NAME}/{status}")
@@ -315,7 +315,7 @@ The most common cause is the database permission issue above. Other possibilitie
 
 Agents self-register — the dashboard starts empty by design. Post a status update to register an agent:
 ```bash
-curl -X POST http://localhost:5050/api/update/TestAgent/idle
+curl -X POST "http://localhost:5050/api/update/Test%20Agent/idle"
 ```
 
 If you previously had data, make sure you mounted the correct directory containing your `agent_status.db`:
@@ -352,7 +352,7 @@ docker run -d -p 5050:5050 -e STALE_THRESHOLD_MINUTES=60 ...
 
 To manually clear a stale agent, post an `idle` status:
 ```bash
-curl -X POST http://localhost:5050/api/update/StaleAgent/idle
+curl -X POST "http://localhost:5050/api/update/Stale%20Agent/idle"
 ```
 
 ## Versioning

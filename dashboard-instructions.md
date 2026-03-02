@@ -42,30 +42,30 @@ are preserved automatically.
 Examples:
 ```bash
 # Start working
-curl -X POST http://localhost:5050/api/update/MyAgent/working
+curl -X POST "http://localhost:5050/api/update/My%20Agent/working"
 
 # Start working on a specific task
-curl -X POST "http://localhost:5050/api/update/MyAgent/working?task=Implement+feature+X"
+curl -X POST "http://localhost:5050/api/update/My%20Agent/working?task=Implement+feature+X"
 
 # Start working on a GitHub issue
-curl -X POST "http://localhost:5050/api/update/MyAgent/working?task=Fix+auth+bug&task_url=https://github.com/org/repo/issues/42"
+curl -X POST "http://localhost:5050/api/update/My%20Agent/working?task=Fix+auth+bug&task_url=https://github.com/org/repo/issues/42"
 
 # Report the model being used
-curl -X POST "http://localhost:5050/api/update/MyAgent/working?task=Fix+auth+bug&model=Claude+Sonnet+4.5"
+curl -X POST "http://localhost:5050/api/update/My%20Agent/working?task=Fix+auth+bug&model=Claude+Sonnet+4.5"
 
 # Agent with spaces (URL-encode)
-curl -X POST http://localhost:5050/api/update/Terraform%20Agent/working
+curl -X POST "http://localhost:5050/api/update/Terraform%20Agent/working"
 
 # Mark completed
-curl -X POST http://localhost:5050/api/update/MyAgent/completed
+curl -X POST "http://localhost:5050/api/update/My%20Agent/completed"
 
 # Report error
-curl -X POST http://localhost:5050/api/update/MyAgent/error
+curl -X POST "http://localhost:5050/api/update/My%20Agent/error"
 ```
 
 Response:
 ```json
-{"ok": true, "agent": "MyAgent", "status": "working", "task": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42", "model": "Claude Sonnet 4.5"}
+{"ok": true, "agent": "My Agent", "status": "working", "task": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42", "model": "Claude Sonnet 4.5"}
 ```
 
 ### Get All Agent Status
@@ -77,7 +77,7 @@ Response:
 ```json
 {
   "current": {
-    "MyAgent": {"status": "working", "timestamp": "2026-01-15T10:30:00Z", "working_seconds": 120, "task_name": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42", "model": "Claude Sonnet 4.5"}
+    "My Agent": {"status": "working", "timestamp": "2026-01-15T10:30:00Z", "working_seconds": 120, "task_name": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42", "model": "Claude Sonnet 4.5"}
   },
   "log": [...]
 }

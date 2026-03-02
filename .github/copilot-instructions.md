@@ -13,7 +13,7 @@ dynamically via HTTP POST — no pre-configuration required.
 
 ## Architecture
 
-This is a **single-file Flask application** (`dashboard.py`, ~1120 lines) with
+This is a **single-file Flask application** (`dashboard.py`, ~1390 lines) with
 embedded HTML, CSS, and JavaScript. There are no separate template files, static
 assets, or frontend build steps. Everything is in one file by design for maximum
 portability.
@@ -23,19 +23,21 @@ portability.
 | Lines (approx.) | Section |
 |-----------------|---------|
 | 1–25 | Module docstring with all env vars |
-| 27–40 | Imports, Flask app, config constants |
-| 41–80 | ACRONYMS builder, `normalize_agent_name()`, staleness config, status colors |
-| 81–125 | Logo SVG (default + configurable), `LOGO_SVG` constant |
-| 100–510 | `DASHBOARD_HTML` — full HTML template with CSS and JS |
-| 100–170 | CSS `:root` design tokens (light theme) |
-| 170–210 | CSS `[data-theme="dark"]` tokens |
-| 210–460 | CSS rules (header, cards, chart, stats, activity log) |
-| 460–510 | Theme init script (runs in `<head>` to prevent FOUC) |
-| 510–880 | JavaScript: fetch loops, chart rendering, card rendering, theme toggle |
-| 880–920 | `read_csv()`, `get_known_agents()` |
-| 920–950 | `write_status()`, `get_current_status()` with staleness logic |
-| 950–1030 | Flask routes: `/`, `/api/status`, `/api/update`, `/api/concurrency` |
-| 1030–1120 | `if __name__` block |
+| 27–45 | Imports, Flask app, config constants |
+| 48–90 | VALID_STATUSES, ACRONYMS builder, `normalize_agent_name()`, staleness config, status colors |
+| 118–130 | Logo SVG (default + configurable), `LOGO_SVG` constant |
+| 132–1020 | `DASHBOARD_HTML` — full HTML template with CSS and JS |
+| 141–200 | CSS `:root` design tokens (light theme) |
+| 203–240 | CSS `[data-theme="dark"]` tokens |
+| 240–670 | CSS rules (header, cards, chart, stats, activity log) |
+| 670–680 | Theme init script (runs in `<head>` to prevent FOUC) |
+| 680–1020 | JavaScript: fetch loops, chart rendering, card rendering, sorting, theme toggle |
+| 1025–1090 | `init_db()`, database schema, migration, CSV auto-import |
+| 1096–1100 | `get_known_agents()` |
+| 1104–1120 | `write_status()` |
+| 1119–1200 | `get_current_status()` with staleness logic, task/model carry-forward |
+| 1202–1390 | Flask routes: `/`, `/api/status`, `/api/update`, `/api/export/csv`, `/api/concurrency` |
+| 1385–1392 | `if __name__` block |
 
 ### Design Token System
 
@@ -88,7 +90,7 @@ acronyms preserved). The API response returns the canonical name.
 
 Status data is stored in a **SQLite database** with a single `status_log` table:
 
-**Schema:** `id (INTEGER PRIMARY KEY), timestamp (TEXT), agent_name (TEXT), status (TEXT)`
+**Schema:** `id (INTEGER PRIMARY KEY), timestamp (TEXT), agent_name (TEXT), status (TEXT), task_name (TEXT), task_url (TEXT), model (TEXT)`
 
 **Characteristics:**
 - Rows are **append-only** (no updates/deletes in normal operation)
@@ -96,7 +98,7 @@ Status data is stored in a **SQLite database** with a single `status_log` table:
 - Write-Ahead Logging (WAL) mode ensures durability and allows concurrent reads
 - `timestamp` is always UTC ISO 8601 format
 - On startup, if a legacy CSV file exists, it is auto-imported into the database
-- `read_database()` normalizes agent names on read for historical data compatibility
+- `get_current_status()` normalizes agent names on read for historical data compatibility
 - `write_status()` inserts one row per status change
 - `get_current_status()` queries the latest row per agent
 - Staleness is computed at read time, not persisted in the database
@@ -183,23 +185,23 @@ This will trigger the workflow to build and push Docker images with version tags
 - Status badge colors have separate light/dark palettes in JavaScript
 
 ### Staleness Detection
-- Only applies to agents whose last CSV status is `working`
+- Only applies to agents whose last status is `working`
 - Threshold check: `(now - last_update) > STALE_THRESHOLD` seconds
 - Sets `status = "idle"` and `stale = True` in the API response
 - UI shows "idle (stale)" badge with orange `.stale-tag`
-- NOT written back to CSV — computed at read time
+- NOT written back to the database — computed at read time
 
 ### Agent Name Normalization
 - `normalize_agent_name()`: strip → replace `-`/`_` with space → collapse spaces →
   `.title()` → replace acronyms from `ACRONYMS` dict
-- Applied in `api_update()` (ingest) and `read_csv()` (read)
+- Applied in `api_update()` (ingest) and `get_current_status()` (read)
 - Acronyms dict built from `DASHBOARD_ACRONYMS` env var or defaults
 - `.title()` breaks acronyms (`UI` → `Ui`), so we post-process with the map
 - `GitOps` is a special case — stored as `"Gitops": "GitOps"` in the default map
 
 ### Concurrency Chart
 - Canvas-based (no charting library) — drawn in `renderChart()` function
-- X-axis: time range from earliest CSV entry to 5 minutes past now
+- X-axis: time range from earliest database entry to 5 minutes past now
 - Y-axis: concurrent "working" agents at each timestamp
 - Orange vertical line marks current time
 - Colors read from CSS custom properties via `getComputedStyle()` for theme awareness
