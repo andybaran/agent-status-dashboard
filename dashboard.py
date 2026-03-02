@@ -392,6 +392,34 @@ DASHBOARD_HTML = """
       align-items: center;
       gap: var(--ds-space-100);
     }
+    .sort-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: var(--ds-space-100);
+    }
+    .sort-btn {
+      background: var(--ds-surface-primary);
+      border: 1px solid var(--ds-border-primary);
+      border-radius: var(--ds-radius-small);
+      color: var(--ds-foreground-faint);
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: var(--ds-font-text);
+      line-height: 1.4;
+    }
+    .sort-btn:hover {
+      border-color: var(--ds-foreground-action);
+      color: var(--ds-foreground-action);
+    }
+    .sort-btn.active {
+      background: var(--ds-foreground-action);
+      border-color: var(--ds-foreground-action);
+      color: #fff;
+    }
+    .sort-btn .arrow { font-size: 0.65rem; margin-left: 2px; }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -587,7 +615,16 @@ DASHBOARD_HTML = """
     </div>
 
     <!-- Agent Cards -->
-    <div class="section-heading">Agents</div>
+    <div class="section-heading" style="display:flex;align-items:center;gap:var(--ds-space-200);flex-wrap:wrap;">
+      Agents
+      <div class="sort-controls">
+        <span style="font-size:0.75rem;color:var(--ds-foreground-faint);font-weight:400;">Sort by:</span>
+        <button class="sort-btn active" data-sort="name" onclick="setSort('name')">Name</button>
+        <button class="sort-btn" data-sort="status" onclick="setSort('status')">Status</button>
+        <button class="sort-btn" data-sort="timestamp" onclick="setSort('timestamp')">Last Update</button>
+        <button class="sort-btn" data-sort="working" onclick="setSort('working')">Working Time</button>
+      </div>
+    </div>
     <div class="grid" id="agentCards"></div>
 
     <!-- Concurrency Chart -->
@@ -701,6 +738,56 @@ DASHBOARD_HTML = """
       document.getElementById('maxConcurrentAgents').textContent = maxConcurrent;
     }
 
+    /* ── Sort state ─────────────────────────────────────────────── */
+    let currentSort = 'name';
+    let sortAsc = true;
+    let lastAgentsData = null;
+
+    const STATUS_ORDER = {working:0, waiting:1, blocked:2, error:3, idle:4, completed:5};
+
+    function setSort(field) {
+      if (currentSort === field) {
+        sortAsc = !sortAsc;
+      } else {
+        currentSort = field;
+        sortAsc = (field === 'name' || field === 'status');
+      }
+      document.querySelectorAll('.sort-btn').forEach(b => {
+        const isActive = b.dataset.sort === field;
+        b.classList.toggle('active', isActive);
+        const existing = b.querySelector('.arrow');
+        if (existing) existing.remove();
+        if (isActive) {
+          const arrow = document.createElement('span');
+          arrow.className = 'arrow';
+          arrow.textContent = sortAsc ? '▲' : '▼';
+          b.appendChild(arrow);
+        }
+      });
+      if (lastAgentsData) renderCards(lastAgentsData);
+    }
+
+    function sortEntries(entries) {
+      return entries.sort((a, b) => {
+        let cmp = 0;
+        switch (currentSort) {
+          case 'name':
+            cmp = a[0].localeCompare(b[0]); break;
+          case 'status':
+            cmp = (STATUS_ORDER[a[1].status] ?? 9) - (STATUS_ORDER[b[1].status] ?? 9);
+            if (cmp === 0) cmp = a[0].localeCompare(b[0]);
+            break;
+          case 'timestamp':
+            cmp = (a[1].timestamp || '').localeCompare(b[1].timestamp || '');
+            break;
+          case 'working':
+            cmp = (a[1].working_seconds || 0) - (b[1].working_seconds || 0);
+            break;
+        }
+        return sortAsc ? cmp : -cmp;
+      });
+    }
+
     function fmtDuration(secs) {
       if (!secs || secs <= 0) return '0s';
       const h = Math.floor(secs / 3600);
@@ -712,6 +799,7 @@ DASHBOARD_HTML = """
     }
 
     function renderCards(agents) {
+      lastAgentsData = agents;
       const grid = document.getElementById('agentCards');
       grid.innerHTML = '';
       const entries = Object.entries(agents);
@@ -719,7 +807,7 @@ DASHBOARD_HTML = """
         grid.innerHTML = '<div class="no-agents">No agents registered yet. Agents will appear when they post status updates.</div>';
         return;
       }
-      entries.sort((a, b) => a[0].localeCompare(b[0]));
+      sortEntries(entries);
       for (const [name, info] of entries) {
         const fg = statusColor(info.status);
         const bg = statusSurface(info.status);
