@@ -17,24 +17,28 @@ Before reporting status, verify the dashboard is reachable:
 curl -s --max-time 3 http://localhost:5050/api/status > /dev/null && echo "Dashboard is up" || echo "Dashboard not running — start it"
 ```
 
-If it is not running, start it with `nohup` so it **survives terminal and session close**:
+If it is not running, start it with Docker:
 
 ```bash
-# Install dependency (once)
-pip install flask
+docker pull ghcr.io/andybaran/agent-status-dashboard:latest
 
-# Start as a persistent background process — survives session close
-nohup python3 /path/to/dashboard.py > /tmp/dashboard.log 2>&1 &
-echo "Dashboard started — open http://localhost:5050"
+docker run -d \
+  --name agent-dashboard \
+  -p 5050:5050 \
+  -v "$(pwd)/dashboard-data:/data" \
+  -e DB_PATH=/data/agent_status.db \
+  ghcr.io/andybaran/agent-status-dashboard:latest
+
+echo "Dashboard running — open http://localhost:5050"
 ```
 
-> ⚠️ **Never use plain `python dashboard.py &`** — it dies when the shell or
-> AI session that launched it is terminated. Always use `nohup ... &`.
+If Docker is not available or the container fails to start, **ask the user**
+whether they want to proceed without dashboard visibility before continuing.
 
-To stop the dashboard later:
+To stop the container later:
 
 ```bash
-pkill -f "python3.*dashboard.py" && echo "Dashboard stopped"
+docker stop agent-dashboard && docker rm agent-dashboard
 ```
 
 ### API

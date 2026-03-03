@@ -63,40 +63,35 @@ A self-contained Python script that simulates a data-pipeline workflow with 8 co
 pip install requests
 ```
 
-The dashboard must be running. Start it with Docker:
+The dashboard must be running. **Check first:**
 
 ```bash
-docker run -d --name demo-dashboard \
+curl -s --max-time 3 http://localhost:5050/api/status > /dev/null && echo "Dashboard is up" || echo "Dashboard not running — start it"
+```
+
+**Start with Docker:**
+
+```bash
+docker pull ghcr.io/andybaran/agent-status-dashboard:latest
+
+docker run -d --name agent-dashboard \
   -p 5050:5050 \
-  -v $(pwd)/data:/data \
+  -v "$(pwd)/dashboard-data:/data" \
+  -e DB_PATH=/data/agent_status.db \
   -e DASHBOARD_TITLE="Demo Pipeline Dashboard" \
   -e STALE_THRESHOLD_MINUTES=5 \
   ghcr.io/andybaran/agent-status-dashboard:latest
+
+echo "Dashboard running — open http://localhost:5050"
 ```
 
-Or locally:
+If Docker is not available or the container fails to start, ask the user
+whether they want to proceed without dashboard visibility before continuing.
+
+**To stop later:**
 
 ```bash
-pip install flask
-# Use nohup so the dashboard survives terminal/session close
-nohup python3 ../dashboard.py > /tmp/dashboard.log 2>&1 &
-echo "Dashboard PID: $! — open http://localhost:5050"
-```
-
-> ⚠️ **Do not use plain `python dashboard.py &`** — the process will be killed
-> when the terminal or AI session that started it closes. `nohup` detaches it
-> from the session so it keeps running.
-
-To verify it is running:
-
-```bash
-curl -s http://localhost:5050/api/status > /dev/null && echo "Dashboard is up" || echo "Dashboard is not running"
-```
-
-To stop it later:
-
-```bash
-pkill -f "python3.*dashboard.py" && echo "Stopped"
+docker stop agent-dashboard && docker rm agent-dashboard
 ```
 
 ### Run the Demo
