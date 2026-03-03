@@ -43,7 +43,7 @@ DASHBOARD_PORT = int(os.environ.get("DASHBOARD_PORT", "5050"))
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent_status.db"))
 CSV_PATH = os.environ.get("CSV_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent_status.csv"))
 DASHBOARD_TITLE = os.environ.get("DASHBOARD_TITLE", "Agent Status Dashboard")
-APP_VERSION = os.environ.get("APP_VERSION", "1.1.0")
+APP_VERSION = os.environ.get("APP_VERSION", "1.2.0")
 
 VALID_STATUSES = {"working", "waiting", "completed", "idle", "blocked", "error"}
 
@@ -128,6 +128,9 @@ DEFAULT_LOGO_SVG = '''<svg width="28" height="28" viewBox="0 0 24 24" fill="none
 
 # Custom logo from environment variable (if set)
 LOGO_SVG = os.environ.get("DASHBOARD_LOGO_SVG", "").strip() or DEFAULT_LOGO_SVG
+
+# Lifecycle management — in-memory flag to trigger the shutdown modal on clients
+_lifecycle_prompt_pending = False
 
 DASHBOARD_HTML = """
 <!DOCTYPE html>
@@ -1290,7 +1293,8 @@ def init_db():
             model TEXT DEFAULT '',
             role TEXT DEFAULT '',
             goal TEXT DEFAULT '',
-            progress TEXT DEFAULT ''
+            progress TEXT DEFAULT '',
+            orchestrator TEXT DEFAULT ''
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_status_log_agent ON status_log(agent_name)")
@@ -1316,6 +1320,12 @@ def init_db():
         conn.execute("ALTER TABLE status_log ADD COLUMN role TEXT DEFAULT ''")
         conn.execute("ALTER TABLE status_log ADD COLUMN goal TEXT DEFAULT ''")
         conn.execute("ALTER TABLE status_log ADD COLUMN progress TEXT DEFAULT ''")
+
+    # Migrate: add orchestrator association column
+    try:
+        conn.execute("SELECT orchestrator FROM status_log LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE status_log ADD COLUMN orchestrator TEXT DEFAULT ''")
 
     conn.commit()
     
@@ -1359,7 +1369,7 @@ def get_known_agents():
     return {row["agent_name"] for row in rows}
 
 
-def write_status(agent_name, status, task_name="", task_url="", model="", role="", goal="", progress=""):
+def write_status(agent_name, status, task_name="", task_url="", model="", role="", goal="", progress="", orchestrator=""):
     """Insert a status row into the database."""
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     db_dir = os.path.dirname(DB_PATH)
@@ -1367,8 +1377,8 @@ def write_status(agent_name, status, task_name="", task_url="", model="", role="
         os.makedirs(db_dir, exist_ok=True)
     conn = get_db()
     conn.execute(
-        "INSERT INTO status_log (timestamp, agent_name, status, task_name, task_url, model, role, goal, progress) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (ts, agent_name, status, task_name, task_url, model, role, goal, progress)
+        "INSERT INTO status_log (timestamp, agent_name, status, task_name, task_url, model, role, goal, progress, orchestrator) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (ts, agent_name, status, task_name, task_url, model, role, goal, progress, orchestrator)
     )
     conn.commit()
     conn.close()
@@ -1377,7 +1387,7 @@ def write_status(agent_name, status, task_name="", task_url="", model="", role="
 def get_current_status():
     """Get the most recent status for each agent, including total working time."""
     conn = get_db()
-    rows = conn.execute("SELECT id, timestamp, agent_name, status, task_name, task_url, model, role, goal, progress FROM status_log ORDER BY id").fetchall()
+    rows = conn.execute("SELECT id, timestamp, agent_name, status, task_name, task_url, model, role, goal, progress, orchestrator FROM status_log ORDER BY id").fetchall()
     conn.close()
     
     known_agents = get_known_agents()
@@ -1385,7 +1395,7 @@ def get_current_status():
     # Initialize all known agents
     current = {}
     for name in known_agents:
-        current[name] = {"status": "idle", "timestamp": "never", "working_seconds": 0, "task_name": "", "task_url": "", "model": "", "role": "", "goal": "", "progress": ""}
+        current[name] = {"status": "idle", "timestamp": "never", "working_seconds": 0, "task_name": "", "task_url": "", "model": "", "role": "", "goal": "", "progress": "", "orchestrator": ""}
 
     # Track working intervals per agent
     working_start = {}  # agent -> timestamp when "working" began
@@ -1419,6 +1429,7 @@ def get_current_status():
         prev_role = current[name].get("role", "")
         prev_goal = current[name].get("goal", "")
         prev_progress = current[name].get("progress", "")
+        prev_orchestrator = current[name].get("orchestrator", "")
 
         current[name] = {"status": status, "timestamp": ts_str}
 
@@ -1431,6 +1442,7 @@ def get_current_status():
         row_role = row["role"] or ""
         row_goal = row["goal"] or ""
         row_progress = row["progress"] or ""
+        row_orchestrator = row["orchestrator"] or ""
         terminal = status in ("idle", "completed", "error")
         if row_task:
             current[name]["task_name"] = row_task
@@ -1448,6 +1460,8 @@ def get_current_status():
         # Goal and progress carry forward, clear on terminal if not re-sent
         current[name]["goal"] = row_goal if row_goal else ("" if terminal else prev_goal)
         current[name]["progress"] = row_progress if row_progress else ("" if terminal else prev_progress)
+        # Orchestrator association is sticky — once set, it persists
+        current[name]["orchestrator"] = row_orchestrator if row_orchestrator else prev_orchestrator
 
     # Add any still-working time up to now
     now = datetime.now(timezone.utc).timestamp()
@@ -1542,7 +1556,9 @@ def api_status():
     log = [dict(row) for row in rows]
     max_concurrent = get_max_concurrent_agents()
     total_duration = get_total_duration_seconds()
-    return jsonify({"current": current, "log": log, "max_concurrent_agents": max_concurrent, "total_duration_seconds": total_duration})
+    # Collect the set of known orchestrators (agents with role=orchestrator)
+    orchestrators = sorted({name for name, info in current.items() if info.get("role") == "orchestrator"})
+    return jsonify({"current": current, "log": log, "max_concurrent_agents": max_concurrent, "total_duration_seconds": total_duration, "orchestrators": orchestrators})
 
 
 @app.route("/api/update/<agent_name>/<status>", methods=["POST"])
@@ -1556,6 +1572,7 @@ def api_update(agent_name, status):
         role - Agent role: 'orchestrator' for the orchestrating agent
         goal - Overall objective of the workflow (orchestrator only)
         progress - Brief progress summary (orchestrator only)
+        orchestrator - Name of the orchestrator this sub-agent reports to
     """
     from flask import request
     status_lower = status.lower()
@@ -1571,7 +1588,10 @@ def api_update(agent_name, status):
     role = request.args.get("role", "")
     goal = request.args.get("goal", "")
     progress = request.args.get("progress", "")
-    write_status(canonical, status_lower, task_name=task_name, task_url=task_url, model=model, role=role, goal=goal, progress=progress)
+    orchestrator_param = request.args.get("orchestrator", "")
+    if orchestrator_param:
+        orchestrator_param = normalize_agent_name(orchestrator_param)
+    write_status(canonical, status_lower, task_name=task_name, task_url=task_url, model=model, role=role, goal=goal, progress=progress, orchestrator=orchestrator_param)
     resp = {"ok": True, "agent": canonical, "status": status_lower}
     if task_name:
         resp["task"] = task_name
@@ -1585,6 +1605,8 @@ def api_update(agent_name, status):
         resp["goal"] = goal
     if progress:
         resp["progress"] = progress
+    if orchestrator_param:
+        resp["orchestrator"] = orchestrator_param
     return jsonify(resp)
 
 
@@ -1634,20 +1656,74 @@ def api_reset_agent(agent_name):
     })
 
 
+@app.route("/api/lifecycle/status")
+def api_lifecycle_status():
+    """Return whether a lifecycle prompt is pending."""
+    return jsonify({"prompt": _lifecycle_prompt_pending})
+
+
+@app.route("/api/lifecycle/prompt", methods=["POST"])
+def api_lifecycle_prompt():
+    """Signal the dashboard to show a lifecycle management modal.
+
+    Called by the AI session when it is about to close, so the human operator
+    can decide what to do with the dashboard and its data.
+    """
+    global _lifecycle_prompt_pending
+    _lifecycle_prompt_pending = True
+    return jsonify({"ok": True, "message": "Lifecycle prompt triggered — user will be presented with options."})
+
+
+@app.route("/api/lifecycle/execute", methods=["POST"])
+def api_lifecycle_execute():
+    """Execute the chosen lifecycle action.
+
+    Query params:
+        mode - One of:
+            keep_running    : dismiss the prompt, dashboard stays running
+            shutdown_keep   : stop the dashboard process, keep the database
+            shutdown_delete : delete the database, then stop the dashboard process
+    """
+    from flask import request
+    import threading
+    import signal
+    global _lifecycle_prompt_pending
+    mode = request.args.get("mode", "keep_running")
+    if mode == "keep_running":
+        _lifecycle_prompt_pending = False
+        return jsonify({"ok": True, "mode": mode})
+    elif mode in ("shutdown_keep", "shutdown_delete"):
+        _lifecycle_prompt_pending = False
+        if mode == "shutdown_delete" and os.path.exists(DB_PATH):
+            try:
+                os.remove(DB_PATH)
+            except OSError as e:
+                return jsonify({"ok": False, "error": f"Could not delete database: {e}"}), 500
+        def _do_shutdown():
+            import time
+            time.sleep(0.4)
+            os.kill(os.getpid(), signal.SIGTERM)
+        threading.Thread(target=_do_shutdown, daemon=True).start()
+        return jsonify({"ok": True, "mode": mode, "message": "Dashboard is shutting down."})
+    else:
+        return jsonify({"ok": False, "error": f"Unknown mode '{mode}'. Valid: keep_running, shutdown_keep, shutdown_delete"}), 400
+
+
 @app.route("/api/export/csv")
 def api_export_csv():
     """Export all status data as a CSV download."""
     import io
     conn = get_db()
-    rows = conn.execute("SELECT timestamp, agent_name, status, task_name, task_url, model, role, goal, progress FROM status_log ORDER BY id").fetchall()
+    rows = conn.execute("SELECT timestamp, agent_name, status, task_name, task_url, model, role, goal, progress, orchestrator FROM status_log ORDER BY id").fetchall()
     conn.close()
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["timestamp", "agent_name", "status", "task_name", "task_url", "model", "role", "goal", "progress"])
+    writer.writerow(["timestamp", "agent_name", "status", "task_name", "task_url", "model", "role", "goal", "progress", "orchestrator"])
     for row in rows:
         writer.writerow([row["timestamp"], row["agent_name"], row["status"], 
                         row["task_name"] or "", row["task_url"] or "", row["model"] or "",
-                        row["role"] or "", row["goal"] or "", row["progress"] or ""])
+                        row["role"] or "", row["goal"] or "", row["progress"] or "",
+                        row["orchestrator"] or ""])
     return Response(output.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": "attachment; filename=agent_status.csv"})
 
