@@ -33,6 +33,7 @@ No separate static files, no frontend build step, no JS framework.
 - Legacy CSV auto-import on first startup if `CSV_PATH` is set
 - Agent names normalized server-side (`normalize_agent_name()`)
 - Staleness detection computed at read time, not persisted
+- **Orchestrator panel**: agents with `role=orchestrator` get a dedicated panel above agent cards showing goal, progress, and sub-agent status counts
 
 ## Key Rules
 

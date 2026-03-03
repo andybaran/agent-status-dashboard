@@ -7,6 +7,7 @@ A lightweight, platform-agnostic dashboard for monitoring AI agent status in orc
 ## Features
 
 - **Dynamic Agent Registration** — Agents appear automatically when they post their first status update
+- **Orchestrator Panel** — Dedicated panel above agent cards for the orchestrating agent, showing goal, progress, and sub-agent status counts
 - **Real-time Status Cards** — Visual status for each agent with color-coded badges
 - **Task Tracking** — Each card shows the agent's current task, with clickable links to GitHub/GitLab issues
 - **Model Display** — Each card shows the AI model being used (e.g. Claude Sonnet 4.5, GPT-4.1)
@@ -112,11 +113,17 @@ POST /api/update/<agent_name>/<status>
 | `task` | Name/description of the current task |
 | `task_url` | URL to the task (e.g. GitHub issue, Jira ticket) |
 | `model` | AI model being used (e.g. Claude Sonnet 4.5, GPT-4.1) |
+| `role` | Agent role — set to `orchestrator` for the orchestrating agent |
+| `goal` | Overall objective of the workflow (orchestrator only) |
+| `progress` | Brief progress summary (orchestrator only) |
 
 Task info is displayed on the agent's card. If `task_url` is provided, the task
 name is rendered as a clickable link. Model is displayed below the task in
-italic. All three carry forward across status updates until a new value is
+italic. All parameters carry forward across status updates until a new value is
 provided.
+
+Agents with `role=orchestrator` are displayed in a dedicated panel above the
+agent cards, showing goal, progress, and live sub-agent status counts.
 
 **Examples:**
 ```bash
@@ -140,11 +147,22 @@ curl -X POST "http://localhost:5050/api/update/My%20Agent/completed"
 
 # Report an error
 curl -X POST "http://localhost:5050/api/update/My%20Agent/error"
+
+# Orchestrator — report with goal and progress (displayed in dedicated panel)
+curl -X POST "http://localhost:5050/api/update/Orchestrator/working?role=orchestrator&goal=Deploy+v2.0&progress=Spawning+sub-agents&task=Initialize+pipeline&model=Claude+Opus+4.6"
+
+# Orchestrator — update progress
+curl -X POST "http://localhost:5050/api/update/Orchestrator/waiting?role=orchestrator&progress=3+of+5+agents+completed"
 ```
 
 **Response:**
 ```json
 {"ok": true, "agent": "My Agent", "status": "working", "task": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42", "model": "Claude Sonnet 4.5"}
+```
+
+**Orchestrator response:**
+```json
+{"ok": true, "agent": "Orchestrator", "status": "working", "role": "orchestrator", "goal": "Deploy v2.0", "progress": "Spawning sub-agents"}
 ```
 
 > **Note:** The returned `agent` field is the *canonical* (normalized) name — see

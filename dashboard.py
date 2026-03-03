@@ -43,7 +43,7 @@ DASHBOARD_PORT = int(os.environ.get("DASHBOARD_PORT", "5050"))
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent_status.db"))
 CSV_PATH = os.environ.get("CSV_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent_status.csv"))
 DASHBOARD_TITLE = os.environ.get("DASHBOARD_TITLE", "Agent Status Dashboard")
-APP_VERSION = os.environ.get("APP_VERSION", "1.0.0")
+APP_VERSION = os.environ.get("APP_VERSION", "1.1.0")
 
 VALID_STATUSES = {"working", "waiting", "completed", "idle", "blocked", "error"}
 
@@ -567,6 +567,94 @@ DASHBOARD_HTML = """
       font-size: 0.875rem;
     }
 
+    /* ── Orchestrator Panel ────────────────────────────────────── */
+    .orchestrator-panel {
+      background: var(--ds-surface-primary);
+      border: 1px solid var(--ds-border-primary);
+      border-radius: var(--ds-radius-large);
+      box-shadow: var(--ds-elevation-mid);
+      padding: var(--ds-space-300);
+      margin-bottom: var(--ds-space-300);
+      border-left: 4px solid var(--ds-foreground-action);
+    }
+    .orchestrator-panel.hidden { display: none; }
+    .orchestrator-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--ds-space-200);
+      flex-wrap: wrap;
+      gap: var(--ds-space-100);
+    }
+    .orchestrator-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--ds-foreground-strong);
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-100);
+    }
+    .orchestrator-title .orch-icon {
+      font-size: 1.1rem;
+    }
+    .orchestrator-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--ds-space-200) var(--ds-space-400);
+    }
+    @media (max-width: 640px) {
+      .orchestrator-body { grid-template-columns: 1fr; }
+    }
+    .orch-field {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .orch-field-label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--ds-foreground-faint);
+    }
+    .orch-field-value {
+      font-size: 0.875rem;
+      color: var(--ds-foreground-primary);
+    }
+    .orch-field-value strong { font-weight: 600; color: var(--ds-foreground-strong); }
+    .orch-field-value a {
+      color: var(--ds-foreground-action);
+      text-decoration: underline;
+    }
+    .orch-goal {
+      grid-column: 1 / -1;
+    }
+    .orch-progress {
+      grid-column: 1 / -1;
+      background: var(--ds-surface-faint);
+      border-radius: var(--ds-radius-small);
+      padding: var(--ds-space-100) var(--ds-space-150);
+    }
+    .orch-sub-agents {
+      display: flex;
+      gap: var(--ds-space-200);
+      flex-wrap: wrap;
+    }
+    .orch-sub-stat {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+    .orch-sub-stat .count {
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--ds-foreground-strong);
+    }
+    .orch-sub-stat .label {
+      font-size: 0.75rem;
+      color: var(--ds-foreground-faint);
+    }
+
     .last-update-text {
       font-size: 0.75rem;
       color: var(--ds-foreground-faint);
@@ -634,6 +722,43 @@ DASHBOARD_HTML = """
         <span class="stat-value" id="totalDuration">0s</span>
       </div>
       <button class="refresh-btn" onclick="fetchData()">&#x21bb; Refresh</button>
+    </div>
+
+    <!-- Orchestrator Panel -->
+    <div class="orchestrator-panel hidden" id="orchestratorPanel">
+      <div class="orchestrator-header">
+        <div class="orchestrator-title">
+          <span class="orch-icon">&#x1F3AF;</span>
+          <span id="orchName">Orchestrator</span>
+          <span class="status-badge" id="orchBadge"></span>
+        </div>
+        <div style="font-size:0.75rem;color:var(--ds-foreground-faint);">
+          Last update: <span id="orchTimestamp">--</span>
+          &nbsp;·&nbsp;Working time: <span id="orchWorkingTime">0s</span>
+        </div>
+      </div>
+      <div class="orchestrator-body">
+        <div class="orch-field orch-goal" id="orchGoalField">
+          <span class="orch-field-label">Goal</span>
+          <span class="orch-field-value" id="orchGoal">--</span>
+        </div>
+        <div class="orch-field" id="orchTaskField">
+          <span class="orch-field-label">Current Task</span>
+          <span class="orch-field-value" id="orchTask">--</span>
+        </div>
+        <div class="orch-field" id="orchModelField">
+          <span class="orch-field-label">Model</span>
+          <span class="orch-field-value" id="orchModel" style="font-style:italic;">--</span>
+        </div>
+        <div class="orch-field orch-progress" id="orchProgressField">
+          <span class="orch-field-label">Progress</span>
+          <span class="orch-field-value" id="orchProgress">--</span>
+        </div>
+        <div class="orch-field" style="grid-column:1/-1;">
+          <span class="orch-field-label">Sub-Agents</span>
+          <div class="orch-sub-agents" id="orchSubAgents">--</div>
+        </div>
+      </div>
     </div>
 
     <!-- Agent Cards -->
@@ -839,11 +964,97 @@ DASHBOARD_HTML = """
       return s + 's';
     }
 
+    function renderOrchestrator(agents) {
+      const panel = document.getElementById('orchestratorPanel');
+      // Find the orchestrator agent (role === 'orchestrator')
+      let orchName = null, orchInfo = null;
+      for (const [name, info] of Object.entries(agents)) {
+        if (info.role === 'orchestrator') { orchName = name; orchInfo = info; break; }
+      }
+      if (!orchName) { panel.classList.add('hidden'); return; }
+      panel.classList.remove('hidden');
+
+      // Status badge
+      const fg = statusColor(orchInfo.status);
+      const bg = statusSurface(orchInfo.status);
+      const staleTag = orchInfo.stale ? ' (stale)' : '';
+      const badge = document.getElementById('orchBadge');
+      badge.style.background = bg;
+      badge.style.color = fg;
+      badge.style.borderColor = fg;
+      badge.innerHTML = '<span></span>' + (orchInfo.status || 'idle') + staleTag;
+
+      // Border color matches status
+      panel.style.borderLeftColor = fg;
+
+      document.getElementById('orchName').textContent = orchName;
+      document.getElementById('orchTimestamp').textContent = orchInfo.timestamp || 'never';
+      document.getElementById('orchWorkingTime').textContent = fmtDuration(orchInfo.working_seconds);
+
+      // Goal
+      const goalField = document.getElementById('orchGoalField');
+      if (orchInfo.goal) {
+        goalField.style.display = '';
+        document.getElementById('orchGoal').innerHTML = '<strong>' + orchInfo.goal + '</strong>';
+      } else {
+        goalField.style.display = 'none';
+      }
+
+      // Task
+      const taskField = document.getElementById('orchTaskField');
+      if (orchInfo.task_name) {
+        taskField.style.display = '';
+        if (orchInfo.task_url) {
+          document.getElementById('orchTask').innerHTML = '<a href="' + orchInfo.task_url + '" target="_blank" rel="noopener">' + orchInfo.task_name + '</a>';
+        } else {
+          document.getElementById('orchTask').innerHTML = '<strong>' + orchInfo.task_name + '</strong>';
+        }
+      } else {
+        taskField.style.display = 'none';
+      }
+
+      // Model
+      const modelField = document.getElementById('orchModelField');
+      if (orchInfo.model) {
+        modelField.style.display = '';
+        document.getElementById('orchModel').textContent = orchInfo.model;
+      } else {
+        modelField.style.display = 'none';
+      }
+
+      // Progress
+      const progField = document.getElementById('orchProgressField');
+      if (orchInfo.progress) {
+        progField.style.display = '';
+        document.getElementById('orchProgress').textContent = orchInfo.progress;
+      } else {
+        progField.style.display = 'none';
+      }
+
+      // Sub-agents summary (exclude orchestrator)
+      const subAgents = Object.entries(agents).filter(([n]) => n !== orchName);
+      const total = subAgents.length;
+      const working = subAgents.filter(([,a]) => a.status === 'working').length;
+      const waiting = subAgents.filter(([,a]) => a.status === 'waiting').length;
+      const completed = subAgents.filter(([,a]) => a.status === 'completed').length;
+      const errored = subAgents.filter(([,a]) => a.status === 'error' || a.status === 'blocked').length;
+      let html = '';
+      html += `<div class="orch-sub-stat"><span class="count">${total}</span><span class="label">total</span></div>`;
+      html += `<div class="orch-sub-stat"><span class="count" style="color:${statusColor('working')}">${working}</span><span class="label">working</span></div>`;
+      html += `<div class="orch-sub-stat"><span class="count" style="color:${statusColor('waiting')}">${waiting}</span><span class="label">waiting</span></div>`;
+      html += `<div class="orch-sub-stat"><span class="count" style="color:${statusColor('completed')}">${completed}</span><span class="label">completed</span></div>`;
+      if (errored > 0) html += `<div class="orch-sub-stat"><span class="count" style="color:${statusColor('error')}">${errored}</span><span class="label">error/blocked</span></div>`;
+      document.getElementById('orchSubAgents').innerHTML = html;
+    }
+
     function renderCards(agents) {
       lastAgentsData = agents;
+      // Render orchestrator panel first
+      renderOrchestrator(agents);
       const grid = document.getElementById('agentCards');
       grid.innerHTML = '';
-      const entries = Object.entries(agents);
+      // Exclude orchestrator from regular cards
+      const entries = Object.entries(agents).filter(([, info]) => info.role !== 'orchestrator');
       if (entries.length === 0) {
         grid.innerHTML = '<div class="no-agents">No agents registered yet. Agents will appear when they post status updates.</div>';
         return;
@@ -1076,7 +1287,10 @@ def init_db():
             status TEXT NOT NULL,
             task_name TEXT DEFAULT '',
             task_url TEXT DEFAULT '',
-            model TEXT DEFAULT ''
+            model TEXT DEFAULT '',
+            role TEXT DEFAULT '',
+            goal TEXT DEFAULT '',
+            progress TEXT DEFAULT ''
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_status_log_agent ON status_log(agent_name)")
@@ -1094,6 +1308,14 @@ def init_db():
         conn.execute("SELECT model FROM status_log LIMIT 1")
     except sqlite3.OperationalError:
         conn.execute("ALTER TABLE status_log ADD COLUMN model TEXT DEFAULT ''")
+
+    # Migrate: add orchestrator columns if upgrading from older schema
+    try:
+        conn.execute("SELECT role FROM status_log LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE status_log ADD COLUMN role TEXT DEFAULT ''")
+        conn.execute("ALTER TABLE status_log ADD COLUMN goal TEXT DEFAULT ''")
+        conn.execute("ALTER TABLE status_log ADD COLUMN progress TEXT DEFAULT ''")
 
     conn.commit()
     
@@ -1137,7 +1359,7 @@ def get_known_agents():
     return {row["agent_name"] for row in rows}
 
 
-def write_status(agent_name, status, task_name="", task_url="", model=""):
+def write_status(agent_name, status, task_name="", task_url="", model="", role="", goal="", progress=""):
     """Insert a status row into the database."""
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     db_dir = os.path.dirname(DB_PATH)
@@ -1145,8 +1367,8 @@ def write_status(agent_name, status, task_name="", task_url="", model=""):
         os.makedirs(db_dir, exist_ok=True)
     conn = get_db()
     conn.execute(
-        "INSERT INTO status_log (timestamp, agent_name, status, task_name, task_url, model) VALUES (?, ?, ?, ?, ?, ?)",
-        (ts, agent_name, status, task_name, task_url, model)
+        "INSERT INTO status_log (timestamp, agent_name, status, task_name, task_url, model, role, goal, progress) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (ts, agent_name, status, task_name, task_url, model, role, goal, progress)
     )
     conn.commit()
     conn.close()
@@ -1155,7 +1377,7 @@ def write_status(agent_name, status, task_name="", task_url="", model=""):
 def get_current_status():
     """Get the most recent status for each agent, including total working time."""
     conn = get_db()
-    rows = conn.execute("SELECT id, timestamp, agent_name, status, task_name, task_url, model FROM status_log ORDER BY id").fetchall()
+    rows = conn.execute("SELECT id, timestamp, agent_name, status, task_name, task_url, model, role, goal, progress FROM status_log ORDER BY id").fetchall()
     conn.close()
     
     known_agents = get_known_agents()
@@ -1163,7 +1385,7 @@ def get_current_status():
     # Initialize all known agents
     current = {}
     for name in known_agents:
-        current[name] = {"status": "idle", "timestamp": "never", "working_seconds": 0, "task_name": "", "task_url": "", "model": ""}
+        current[name] = {"status": "idle", "timestamp": "never", "working_seconds": 0, "task_name": "", "task_url": "", "model": "", "role": "", "goal": "", "progress": ""}
 
     # Track working intervals per agent
     working_start = {}  # agent -> timestamp when "working" began
@@ -1190,10 +1412,13 @@ def get_current_status():
                 working_totals[name] += ts - working_start[name]
                 del working_start[name]
 
-        # Preserve previous task/model info before overwriting
+        # Preserve previous task/model/orchestrator info before overwriting
         prev_task = current[name].get("task_name", "")
         prev_url = current[name].get("task_url", "")
         prev_model = current[name].get("model", "")
+        prev_role = current[name].get("role", "")
+        prev_goal = current[name].get("goal", "")
+        prev_progress = current[name].get("progress", "")
 
         current[name] = {"status": status, "timestamp": ts_str}
 
@@ -1203,6 +1428,9 @@ def get_current_status():
         row_task = row["task_name"] or ""
         row_url = row["task_url"] or ""
         row_model = row["model"] or ""
+        row_role = row["role"] or ""
+        row_goal = row["goal"] or ""
+        row_progress = row["progress"] or ""
         terminal = status in ("idle", "completed", "error")
         if row_task:
             current[name]["task_name"] = row_task
@@ -1214,6 +1442,12 @@ def get_current_status():
             current[name]["task_name"] = prev_task
             current[name]["task_url"] = prev_url
         current[name]["model"] = row_model if row_model else ("" if terminal else prev_model)
+
+        # Role is sticky — once set, it persists
+        current[name]["role"] = row_role if row_role else prev_role
+        # Goal and progress carry forward, clear on terminal if not re-sent
+        current[name]["goal"] = row_goal if row_goal else ("" if terminal else prev_goal)
+        current[name]["progress"] = row_progress if row_progress else ("" if terminal else prev_progress)
 
     # Add any still-working time up to now
     now = datetime.now(timezone.utc).timestamp()
@@ -1319,6 +1553,9 @@ def api_update(agent_name, status):
         task  - Name/description of the current task
         task_url - URL to the task (e.g. GitHub issue link)
         model - AI model being used (e.g. Claude Sonnet 4.5, GPT-4.1)
+        role - Agent role: 'orchestrator' for the orchestrating agent
+        goal - Overall objective of the workflow (orchestrator only)
+        progress - Brief progress summary (orchestrator only)
     """
     from flask import request
     status_lower = status.lower()
@@ -1331,7 +1568,10 @@ def api_update(agent_name, status):
     task_name = request.args.get("task", "")
     task_url = request.args.get("task_url", "")
     model = request.args.get("model", "")
-    write_status(canonical, status_lower, task_name=task_name, task_url=task_url, model=model)
+    role = request.args.get("role", "")
+    goal = request.args.get("goal", "")
+    progress = request.args.get("progress", "")
+    write_status(canonical, status_lower, task_name=task_name, task_url=task_url, model=model, role=role, goal=goal, progress=progress)
     resp = {"ok": True, "agent": canonical, "status": status_lower}
     if task_name:
         resp["task"] = task_name
@@ -1339,6 +1579,12 @@ def api_update(agent_name, status):
         resp["task_url"] = task_url
     if model:
         resp["model"] = model
+    if role:
+        resp["role"] = role
+    if goal:
+        resp["goal"] = goal
+    if progress:
+        resp["progress"] = progress
     return jsonify(resp)
 
 
@@ -1393,14 +1639,15 @@ def api_export_csv():
     """Export all status data as a CSV download."""
     import io
     conn = get_db()
-    rows = conn.execute("SELECT timestamp, agent_name, status, task_name, task_url, model FROM status_log ORDER BY id").fetchall()
+    rows = conn.execute("SELECT timestamp, agent_name, status, task_name, task_url, model, role, goal, progress FROM status_log ORDER BY id").fetchall()
     conn.close()
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["timestamp", "agent_name", "status", "task_name", "task_url", "model"])
+    writer.writerow(["timestamp", "agent_name", "status", "task_name", "task_url", "model", "role", "goal", "progress"])
     for row in rows:
         writer.writerow([row["timestamp"], row["agent_name"], row["status"], 
-                        row["task_name"] or "", row["task_url"] or "", row["model"] or ""])
+                        row["task_name"] or "", row["task_url"] or "", row["model"] or "",
+                        row["role"] or "", row["goal"] or "", row["progress"] or ""])
     return Response(output.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": "attachment; filename=agent_status.csv"})
 

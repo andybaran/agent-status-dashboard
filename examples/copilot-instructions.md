@@ -35,10 +35,16 @@ POST /api/update/<agent_name>/<status>
 | `task` | Name/description of the current task |
 | `task_url` | URL to the task (e.g. GitHub issue, Jira ticket, GitLab MR) |
 | `model` | AI model being used (e.g. Claude Sonnet 4.5, GPT-4.1) |
+| `role` | Agent role — set to `orchestrator` for the orchestrating agent |
+| `goal` | Overall objective of the workflow (orchestrator only) |
+| `progress` | Brief progress summary (orchestrator only) |
 
 Task info is displayed on the agent's dashboard card. If `task_url` is provided,
 it renders as a clickable link. Model is displayed below the task in italic.
-All three carry forward until replaced.
+All parameters carry forward until replaced.
+
+Orchestrator agents are displayed in a dedicated panel above the agent cards,
+showing the goal, progress summary, and a live count of sub-agent statuses.
 
 ### Naming Convention
 
@@ -138,9 +144,54 @@ When running multiple agents in parallel:
 - The human operator uses the dashboard to monitor progress, spot blockers,
   and understand which agents are active
 
-Example with 3 agents working on a feature:
+### Orchestrator Agent Reporting
+
+If you are the **orchestrating agent** (the top-level agent that plans, delegates,
+and coordinates sub-agents), you **must also report your own status** to the
+dashboard — you are not exempt from the reporting rules above. The orchestrator
+is displayed in a **dedicated panel** above the agent cards, showing goal,
+progress, and sub-agent counts.
+
+**Required orchestrator parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `role=orchestrator` | **Must be set on every status update** — identifies this agent as the orchestrator |
+| `goal` | The overall objective of the workflow (e.g. "Deploy v2.0 to production") |
+| `progress` | Brief progress summary, updated as the workflow advances |
+
+**Orchestrator lifecycle:**
+
+```bash
+# 1. Starting — set role, goal, and initial progress
+curl -s -X POST "http://localhost:5050/api/update/Orchestrator/working?role=orchestrator&goal=Deploy+v2.0+to+production&progress=Initializing+—+spawning+sub-agents&task=Plan+and+delegate&task_url=https://github.com/org/repo/issues/50&model=Claude+Opus+4.6" > /dev/null
+
+# 2. Waiting on sub-agents — update progress
+curl -s -X POST "http://localhost:5050/api/update/Orchestrator/waiting?role=orchestrator&progress=3+of+5+sub-agents+completed" > /dev/null
+
+# 3. Resume to review results
+curl -s -X POST "http://localhost:5050/api/update/Orchestrator/working?role=orchestrator&progress=All+sub-agents+done+—+reviewing+results&task=Review+and+finalize" > /dev/null
+
+# 4. Complete
+curl -s -X POST "http://localhost:5050/api/update/Orchestrator/completed?role=orchestrator&progress=Deployment+complete+—+all+agents+succeeded&task=v2.0+deployed&task_url=https://github.com/org/repo/issues/50" > /dev/null
+```
+
+**Key points:**
+
+- **Always include `role=orchestrator`** on every status update so the dashboard
+  renders you in the orchestrator panel (not as a regular card).
+- **Update `progress`** frequently — this is the human operator's primary view
+  into workflow state.
+- Report `working` when actively planning, reviewing results, or making decisions.
+- Report `waiting` when all sub-agents are running and you are idle until they finish.
+- Send **heartbeat check-ins every 2–3 minutes** during long waits or planning phases.
+- Report the **model you are using** via the `model` parameter — the operator
+  needs to see orchestrator cost alongside sub-agent cost.
+
+Example with 3 agents and an orchestrator:
 
 ```
+Orchestrator    →  working → waiting (for sub-agents) → working → completed
 Research Agent  →  working → completed
 Code Agent      →  waiting (for research) → working → completed
 Test Agent      →  waiting (for code) → working → error → working → completed

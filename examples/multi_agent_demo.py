@@ -57,7 +57,8 @@ SPEED = float(os.environ.get("DEMO_SPEED", "1.0"))
 # Helpers
 # ---------------------------------------------------------------------------
 
-def post_status(agent_name: str, status: str, task: str = "", task_url: str = "", model: str = "") -> None:
+def post_status(agent_name: str, status: str, task: str = "", task_url: str = "",
+                model: str = "", role: str = "", goal: str = "", progress: str = "") -> None:
     """Post a status update to the dashboard API."""
     encoded = urllib.parse.quote(agent_name, safe="")
     url = f"{DASHBOARD_URL}/api/update/{encoded}/{status}"
@@ -68,6 +69,12 @@ def post_status(agent_name: str, status: str, task: str = "", task_url: str = ""
         params["task_url"] = task_url
     if model:
         params["model"] = model
+    if role:
+        params["role"] = role
+    if goal:
+        params["goal"] = goal
+    if progress:
+        params["progress"] = progress
     try:
         r = requests.post(url, params=params, timeout=5)
         ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
@@ -92,16 +99,30 @@ def jitter(base: float, variance: float = 0.3) -> float:
 # ---------------------------------------------------------------------------
 
 def orchestrator(barrier: threading.Barrier, done_event: threading.Event):
-    post_status("Orchestrator", "working", task="Coordinate pipeline",
-                task_url="https://github.com/acme/data-pipeline/issues/10", model="Claude Opus 4.6")
+    post_status("Orchestrator", "working", task="Initialize pipeline",
+                task_url="https://github.com/acme/data-pipeline/issues/10",
+                model="Claude Opus 4.6", role="orchestrator",
+                goal="Run end-to-end data pipeline: collect, validate, transform, train, QA, and report",
+                progress="Initializing — spawning sub-agents")
     sleep(jitter(5))
     # Signal all agents to start
     barrier.wait()
+    post_status("Orchestrator", "waiting", task="Monitoring sub-agents",
+                task_url="https://github.com/acme/data-pipeline/issues/10",
+                role="orchestrator",
+                progress="Pipeline running — waiting for all sub-agents to complete")
     # Wait for everyone else to finish
     done_event.wait()
     sleep(jitter(3))
-    post_status("Orchestrator", "completed", task="Coordinate pipeline",
-                task_url="https://github.com/acme/data-pipeline/issues/10")
+    post_status("Orchestrator", "working", task="Reviewing pipeline results",
+                task_url="https://github.com/acme/data-pipeline/issues/10",
+                role="orchestrator",
+                progress="All sub-agents finished — reviewing results and finalizing")
+    sleep(jitter(2))
+    post_status("Orchestrator", "completed", task="Pipeline delivered",
+                task_url="https://github.com/acme/data-pipeline/issues/10",
+                role="orchestrator",
+                progress="Pipeline complete — all 7 sub-agents succeeded")
 
 
 def data_collector(barrier: threading.Barrier, collected: threading.Event):

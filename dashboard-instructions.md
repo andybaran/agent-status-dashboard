@@ -28,11 +28,18 @@ Valid statuses: `working`, `waiting`, `completed`, `idle`, `blocked`, `error`
 | `task` | Name/description of the current task |
 | `task_url` | URL to the task (e.g. GitHub issue, Jira ticket, GitLab MR) |
 | `model` | AI model being used (e.g. Claude Sonnet 4.5, GPT-4.1) |
+| `role` | Agent role — set to `orchestrator` for the orchestrating agent |
+| `goal` | Overall objective of the workflow (orchestrator only) |
+| `progress` | Brief progress summary (orchestrator only) |
 
 Task info is displayed on the agent's card. If `task_url` is provided, the task
 name is rendered as a clickable link. Model is displayed below the task in
-italic. All three carry forward across status updates until a new value is
+italic. All parameters carry forward across status updates until a new value is
 provided.
+
+Agents with `role=orchestrator` are displayed in a dedicated panel above the
+agent cards, showing the goal, progress summary, sub-agent status counts, and
+standard fields (status, task, model, timestamp).
 
 **Naming convention:** Use `Title Case` with spaces (e.g. `Research Agent`).
 Names are normalized server-side — hyphens, underscores, and casing differences
@@ -61,11 +68,22 @@ curl -X POST "http://localhost:5050/api/update/My%20Agent/completed"
 
 # Report error
 curl -X POST "http://localhost:5050/api/update/My%20Agent/error"
+
+# Orchestrator — reports goal and progress (displayed in dedicated panel)
+curl -X POST "http://localhost:5050/api/update/Orchestrator/working?role=orchestrator&goal=Deploy+v2.0&progress=Spawning+sub-agents&task=Initialize+pipeline&model=Claude+Opus+4.6"
+
+# Orchestrator — update progress
+curl -X POST "http://localhost:5050/api/update/Orchestrator/waiting?role=orchestrator&progress=3+of+5+agents+completed"
 ```
 
 Response:
 ```json
 {"ok": true, "agent": "My Agent", "status": "working", "task": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42", "model": "Claude Sonnet 4.5"}
+```
+
+Orchestrator response:
+```json
+{"ok": true, "agent": "Orchestrator", "status": "working", "role": "orchestrator", "goal": "Deploy v2.0", "progress": "Spawning sub-agents"}
 ```
 
 ### Get All Agent Status
@@ -77,7 +95,8 @@ Response:
 ```json
 {
   "current": {
-    "My Agent": {"status": "working", "timestamp": "2026-01-15T10:30:00Z", "working_seconds": 120, "task_name": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42", "model": "Claude Sonnet 4.5"}
+    "My Agent": {"status": "working", "timestamp": "2026-01-15T10:30:00Z", "working_seconds": 120, "task_name": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42", "model": "Claude Sonnet 4.5", "role": "", "goal": "", "progress": ""},
+    "Orchestrator": {"status": "waiting", "timestamp": "2026-01-15T10:29:00Z", "working_seconds": 60, "task_name": "Monitor pipeline", "task_url": "", "model": "Claude Opus 4.6", "role": "orchestrator", "goal": "Deploy v2.0", "progress": "3 of 5 agents completed"}
   },
   "log": [...]
 }

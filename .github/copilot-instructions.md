@@ -88,11 +88,14 @@ Valid statuses: `working`, `waiting`, `completed`, `idle`, `blocked`, `error`
 Agent names are normalized server-side (hyphens/underscores → spaces, title-cased,
 acronyms preserved). The API response returns the canonical name.
 
+Optional query parameters: `task`, `task_url`, `model`, `role`, `goal`, `progress`.
+Agents with `role=orchestrator` are displayed in a dedicated panel above agent cards.
+
 ## Data Model
 
 Status data is stored in a **SQLite database** with a single `status_log` table:
 
-**Schema:** `id (INTEGER PRIMARY KEY), timestamp (TEXT), agent_name (TEXT), status (TEXT), task_name (TEXT), task_url (TEXT), model (TEXT)`
+**Schema:** `id (INTEGER PRIMARY KEY), timestamp (TEXT), agent_name (TEXT), status (TEXT), task_name (TEXT), task_url (TEXT), model (TEXT), role (TEXT), goal (TEXT), progress (TEXT)`
 
 **Characteristics:**
 - Rows are **append-only** (no updates/deletes in normal operation)
