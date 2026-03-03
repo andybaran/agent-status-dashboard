@@ -710,6 +710,7 @@ DASHBOARD_HTML = """
     }
 
     /* ── Lifecycle Modal ─────────────────────────────────────── */
+    .hidden { display: none !important; }
     .lifecycle-overlay {
       position: fixed;
       inset: 0;
