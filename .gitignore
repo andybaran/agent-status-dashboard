@@ -31,3 +31,4 @@ data/
 Thumbs.db
 troubleshoot-data/
 agent_status_dev.db
+agent_status_demo.db
