@@ -75,6 +75,9 @@ own AI agent workflows.
   and API patterns. Update `examples/` whenever the API or config changes.
 - **README.md** and **dashboard-instructions.md** MUST be updated whenever
   changes are made to the repository (new features, API changes, config, etc.).
+- **Every code change must be released:** bump `APP_VERSION` in `dashboard.py`,
+  push to `main`, then `git tag -a vX.Y.Z -m "..."` and `git push origin vX.Y.Z`.
+  This triggers CI to build and push the Docker image to GHCR.
 
 ## Detailed Instructions
 

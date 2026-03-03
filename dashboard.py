@@ -43,7 +43,7 @@ DASHBOARD_PORT = int(os.environ.get("DASHBOARD_PORT", "5050"))
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent_status.db"))
 CSV_PATH = os.environ.get("CSV_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent_status.csv"))
 DASHBOARD_TITLE = os.environ.get("DASHBOARD_TITLE", "Agent Status Dashboard")
-APP_VERSION = os.environ.get("APP_VERSION", "1.2.0")
+APP_VERSION = os.environ.get("APP_VERSION", "2.3.0")
 
 VALID_STATUSES = {"working", "waiting", "completed", "idle", "blocked", "error"}
 

@@ -154,14 +154,32 @@ GitHub Actions workflow at `.github/workflows/build-image.yml`:
 
 ### Creating a New Release
 
-To create a new versioned release:
+**Every set of code changes must be released.** After committing and pushing to
+`main`, always create and push a version tag:
 
 ```bash
-git tag -a vX.Y.Z -m "vX.Y.Z: Release description"
+# 1. Bump APP_VERSION in dashboard.py (line ~46) to the new version
+# 2. Commit the version bump
+git add dashboard.py
+git commit -m "chore: bump version to vX.Y.Z"
+
+# 3. Push commits to main
+git push origin main
+
+# 4. Tag and push — this triggers the Docker image build in CI
+git tag -a vX.Y.Z -m "vX.Y.Z: Summary of changes"
 git push origin vX.Y.Z
 ```
 
-This will trigger the workflow to build and push Docker images with version tags.
+**Version numbering:** Check `git tag --list | sort -V | tail -1` for the latest
+tag. Increment the appropriate segment:
+- **Patch** (`X.Y.Z+1`) — bug fixes, CSS/copy tweaks, non-breaking changes
+- **Minor** (`X.Y+1.0`) — new features, new API endpoints, new config options
+- **Major** (`X+1.0.0`) — breaking API changes, schema changes requiring migration
+
+The CI workflow builds a multi-platform Docker image (`linux/amd64` + `linux/arm64`)
+and pushes it to `ghcr.io/andybaran/agent-status-dashboard` with tags:
+`:latest`, `:VERSION`, and `:MAJOR.MINOR`.
 
 ## Code Style & Conventions
 
@@ -294,6 +312,10 @@ These rules are **non-negotiable** and must be followed for every change:
 4. **`CLAUDE.md`** — Must be updated for architecture or workflow changes.
 5. **This file** (`copilot-instructions.md`) — Must be updated for architecture,
    code conventions, file layout, or CI/CD changes.
+6. **Version tag + Docker image** — Every code change **must** be released:
+   bump `APP_VERSION` in `dashboard.py`, push to `main`, then create and push a
+   `vX.Y.Z` tag. This triggers CI to build and push the Docker image. See
+   [Creating a New Release](#creating-a-new-release) for the exact steps.
 
 ## Do NOT
 
