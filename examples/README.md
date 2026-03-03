@@ -78,7 +78,25 @@ Or locally:
 
 ```bash
 pip install flask
-python ../dashboard.py &
+# Use nohup so the dashboard survives terminal/session close
+nohup python3 ../dashboard.py > /tmp/dashboard.log 2>&1 &
+echo "Dashboard PID: $! — open http://localhost:5050"
+```
+
+> ⚠️ **Do not use plain `python dashboard.py &`** — the process will be killed
+> when the terminal or AI session that started it closes. `nohup` detaches it
+> from the session so it keeps running.
+
+To verify it is running:
+
+```bash
+curl -s http://localhost:5050/api/status > /dev/null && echo "Dashboard is up" || echo "Dashboard is not running"
+```
+
+To stop it later:
+
+```bash
+pkill -f "python3.*dashboard.py" && echo "Stopped"
 ```
 
 ### Run the Demo
@@ -119,12 +137,18 @@ DASHBOARD_URL=http://myhost:8080 python multi_agent_demo.py
 The demo agents register in the dashboard's database. To start fresh:
 
 ```bash
-# Stop and remove the demo dashboard container
+# Docker — stop container and delete data
 docker rm -f demo-dashboard
-
-# Delete the data directory
 rm -rf ./data
 
-# Restart
+# Restart with Docker
 docker run -d --name demo-dashboard -p 5050:5050 -v $(pwd)/data:/data ghcr.io/andybaran/agent-status-dashboard:latest
+
+# Local — stop the background process and delete the database
+pkill -f "python3.*dashboard.py"
+rm -f ../agent_status.db
+
+# Restart locally (nohup keeps it running after the terminal closes)
+nohup python3 ../dashboard.py > /tmp/dashboard.log 2>&1 &
+echo "Dashboard PID: $!"
 ```

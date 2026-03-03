@@ -13,6 +13,34 @@ so the human operator has real-time visibility into progress.
 **Dashboard:** http://localhost:5050
 **API docs:** See `dashboard-instructions.md` in the dashboard repo.
 
+### Starting the Dashboard
+
+Before reporting status, verify the dashboard is reachable:
+
+```bash
+curl -s --max-time 3 http://localhost:5050/api/status > /dev/null && echo "Dashboard is up" || echo "Dashboard not running — start it"
+```
+
+If it is not running, start it with `nohup` so it **survives terminal and session close**:
+
+```bash
+# Install dependency (once)
+pip install flask
+
+# Start as a persistent background process — survives session close
+nohup python3 /path/to/dashboard.py > /tmp/dashboard.log 2>&1 &
+echo "Dashboard started — open http://localhost:5050"
+```
+
+> ⚠️ **Never use plain `python dashboard.py &`** — it dies when the shell or
+> AI session that launched it is terminated. Always use `nohup ... &`.
+
+To stop the dashboard later:
+
+```bash
+pkill -f "python3.*dashboard.py" && echo "Dashboard stopped"
+```
+
 ### Status Reporting API
 
 ```
