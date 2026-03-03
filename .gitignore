@@ -30,3 +30,4 @@ data/
 .DS_Store
 Thumbs.db
 troubleshoot-data/
+agent_status_dev.db

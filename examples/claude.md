@@ -55,6 +55,7 @@ POST {DASHBOARD_URL}/api/update/{agent_name}/{status}
 | `role` | Agent role — set to `orchestrator` for the orchestrating agent |
 | `goal` | Overall objective of the workflow (orchestrator only) |
 | `progress` | Brief progress summary (orchestrator only) |
+| `orchestrator` | Name of the orchestrator this sub-agent belongs to (sub-agents only) |
 
 Task info is displayed on the agent's dashboard card. If `task_url` is provided,
 it renders as a clickable link. Model is displayed below the task in italic.
@@ -148,6 +149,39 @@ Failure?     →  POST .../error?task=...&task_url=...
 > **Heartbeat:** For tasks longer than a few minutes, re-POST your `working`
 > status with the same parameters every 2–3 minutes. This resets the staleness
 > timer (default: 10 minutes) and keeps your card active on the dashboard.
+
+### Orchestrator Association (Sub-Agents)
+
+If there are **multiple orchestrators** reporting to the same dashboard, sub-agents
+must identify which orchestrator they belong to. Use the `orchestrator` parameter
+with the exact orchestrator name (as it appears on the dashboard):
+
+```bash
+# Sub-agent linking itself to its orchestrator
+curl -s -X POST "http://localhost:5050/api/update/Code%20Agent/working?task=Implement+login&orchestrator=Orchestrator+Alpha&model=Claude+Sonnet+4.5"
+```
+
+This enables the dashboard's orchestrator filter — operators can view "all orchestrators"
+or drill into a specific orchestrator and its agents.
+
+### Session End — Lifecycle Management
+
+**When your session is ending**, notify the dashboard so the human operator can
+choose what happens to it. Call the lifecycle prompt endpoint **before** your
+final message to the user:
+
+```bash
+# Notify dashboard that the session is ending — triggers the lifecycle modal
+curl -s -X POST http://localhost:5050/api/lifecycle/prompt
+```
+
+The dashboard will display a modal with three options:
+- **Keep Running** — dashboard stays up, all data preserved
+- **Shutdown, Keep Data** — dashboard process exits, database file is preserved
+- **Shutdown & Delete Data** — dashboard process exits and database is deleted
+
+You do not need to call any further endpoints — the human operator makes the
+choice via the dashboard UI.
 
 ### Multi-Agent Coordination
 

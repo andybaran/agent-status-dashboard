@@ -31,6 +31,7 @@ Valid statuses: `working`, `waiting`, `completed`, `idle`, `blocked`, `error`
 | `role` | Agent role — set to `orchestrator` for the orchestrating agent |
 | `goal` | Overall objective of the workflow (orchestrator only) |
 | `progress` | Brief progress summary (orchestrator only) |
+| `orchestrator` | Name of the orchestrator this sub-agent belongs to (sub-agents only) |
 
 Task info is displayed on the agent's card. If `task_url` is provided, the task
 name is rendered as a clickable link. Model is displayed below the task in
@@ -74,6 +75,9 @@ curl -X POST "http://localhost:5050/api/update/Orchestrator/working?role=orchest
 
 # Orchestrator — update progress
 curl -X POST "http://localhost:5050/api/update/Orchestrator/waiting?role=orchestrator&progress=3+of+5+agents+completed"
+
+# Sub-agent linking itself to a specific orchestrator (multi-orchestrator setup)
+curl -X POST "http://localhost:5050/api/update/Code%20Agent/working?task=Implement+feature&orchestrator=My%20Orchestrator&model=Claude+Sonnet+4.5"
 ```
 
 Response:
@@ -95,12 +99,15 @@ Response:
 ```json
 {
   "current": {
-    "My Agent": {"status": "working", "timestamp": "2026-01-15T10:30:00Z", "working_seconds": 120, "task_name": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42", "model": "Claude Sonnet 4.5", "role": "", "goal": "", "progress": ""},
-    "Orchestrator": {"status": "waiting", "timestamp": "2026-01-15T10:29:00Z", "working_seconds": 60, "task_name": "Monitor pipeline", "task_url": "", "model": "Claude Opus 4.6", "role": "orchestrator", "goal": "Deploy v2.0", "progress": "3 of 5 agents completed"}
+    "My Agent": {"status": "working", "timestamp": "2026-01-15T10:30:00Z", "working_seconds": 120, "task_name": "Fix auth bug", "task_url": "https://github.com/org/repo/issues/42", "model": "Claude Sonnet 4.5", "role": "", "goal": "", "progress": "", "orchestrator": "My Orchestrator"},
+    "Orchestrator": {"status": "waiting", "timestamp": "2026-01-15T10:29:00Z", "working_seconds": 60, "task_name": "Monitor pipeline", "task_url": "", "model": "Claude Opus 4.6", "role": "orchestrator", "goal": "Deploy v2.0", "progress": "3 of 5 agents completed", "orchestrator": ""}
   },
+  "orchestrators": ["My Orchestrator"],
   "log": [...]
 }
 ```
+
+The `orchestrators` list contains the names of all agents currently reporting with `role=orchestrator`. The UI uses this to show the orchestrator filter bar when multiple orchestrators are present.
 
 > If an agent's last status is `working` but its last update is older than `STALE_THRESHOLD_MINUTES` (default: 10), the API returns `"status": "idle"` with `"stale": true`.
 
@@ -117,6 +124,39 @@ POST /api/reset/<agent_name>   # Reset a specific agent to idle
 
 Only affects agents currently in `working` status. Use for session-end cleanup
 or to clear ghost agents.
+
+### Lifecycle Management
+
+These endpoints allow AI sessions to notify the dashboard when they are ending,
+letting the human operator choose what happens to the dashboard process.
+
+```bash
+# Trigger the lifecycle prompt modal in the dashboard UI
+POST /api/lifecycle/prompt
+
+# Check if a lifecycle prompt is pending
+GET /api/lifecycle/status
+# Response: {"prompt": true}  or  {"prompt": false}
+
+# Execute a lifecycle action (called by the UI modal, not by agents directly)
+POST /api/lifecycle/execute?mode=<mode>
+```
+
+**Lifecycle modes:**
+| Mode | Effect |
+|------|--------|
+| `keep_running` | Dismiss the modal — dashboard keeps running, all data preserved |
+| `shutdown_keep` | Dashboard process exits, database file is preserved |
+| `shutdown_delete` | Dashboard process exits and database file is deleted |
+
+**Agent usage:** When your session is ending, call `POST /api/lifecycle/prompt`
+and then tell the user to check the dashboard for the shutdown prompt. Do not
+call `/api/lifecycle/execute` yourself — that is the human operator's choice.
+
+```bash
+# Notify the dashboard that the session is ending
+curl -s -X POST http://localhost:5050/api/lifecycle/prompt
+```
 
 ## Recommended Workflow
 

@@ -7,7 +7,8 @@ A lightweight, platform-agnostic dashboard for monitoring AI agent status in orc
 ## Features
 
 - **Dynamic Agent Registration** — Agents appear automatically when they post their first status update
-- **Orchestrator Panel** — Dedicated panel above agent cards for the orchestrating agent, showing goal, progress, and sub-agent status counts
+- **Multi-Orchestrator Support** — Multiple orchestrators can report to the same dashboard; a filter bar lets operators drill into a specific orchestrator and its agents
+- **Orchestrator Panel** — Dedicated panel above agent cards for orchestrating agents, showing goal, progress, and sub-agent status counts
 - **Real-time Status Cards** — Visual status for each agent with color-coded badges
 - **Task Tracking** — Each card shows the agent's current task, with clickable links to GitHub/GitLab issues
 - **Model Display** — Each card shows the AI model being used (e.g. Claude Sonnet 4.5, GPT-4.1)
@@ -15,6 +16,7 @@ A lightweight, platform-agnostic dashboard for monitoring AI agent status in orc
 - **Activity Log** — Last 100 status changes with timestamps
 - **Concurrency Chart** — Canvas-based visualization of concurrent working agents over time
 - **Staleness Detection** — Agents stuck in "working" beyond a configurable threshold are automatically shown as "idle (stale)" with a warning tag
+- **Lifecycle Management** — When an AI session ends, it can trigger a modal giving the operator a choice: keep the dashboard running, shut it down with data, or shut it down and delete data
 - **Light/Dark Theme** — Theme toggle (light, dark, system) with `localStorage` persistence
 - **No External Dependencies** — Pure Python/Flask with vanilla JavaScript
 
@@ -116,6 +118,7 @@ POST /api/update/<agent_name>/<status>
 | `role` | Agent role — set to `orchestrator` for the orchestrating agent |
 | `goal` | Overall objective of the workflow (orchestrator only) |
 | `progress` | Brief progress summary (orchestrator only) |
+| `orchestrator` | Name of the orchestrator this sub-agent belongs to (multi-orchestrator setups) |
 
 Task info is displayed on the agent's card. If `task_url` is provided, the task
 name is rendered as a clickable link. Model is displayed below the task in
@@ -153,6 +156,9 @@ curl -X POST "http://localhost:5050/api/update/Orchestrator/working?role=orchest
 
 # Orchestrator — update progress
 curl -X POST "http://localhost:5050/api/update/Orchestrator/waiting?role=orchestrator&progress=3+of+5+agents+completed"
+
+# Sub-agent in a multi-orchestrator setup — link to a specific orchestrator
+curl -X POST "http://localhost:5050/api/update/Code%20Agent/working?task=Implement+feature&orchestrator=My%20Orchestrator"
 ```
 
 **Response:**
@@ -183,6 +189,40 @@ Marks agents as `idle` by inserting a new status row. Only affects agents whose 
 ```
 
 A "Reset All" button is also available in the dashboard UI header.
+
+### Lifecycle Management
+
+These endpoints let AI agents notify the dashboard when their session is ending,
+giving the human operator a choice of what to do with the running dashboard.
+
+```bash
+# Trigger the lifecycle prompt modal in the dashboard UI
+POST /api/lifecycle/prompt
+
+# Check whether a lifecycle prompt is currently pending
+GET /api/lifecycle/status
+# Response: {"prompt": true}  or  {"prompt": false}
+
+# Execute a lifecycle action (called by the modal UI — not by agents)
+POST /api/lifecycle/execute?mode=<mode>
+```
+
+**Lifecycle modes:**
+
+| Mode | Effect |
+|------|--------|
+| `keep_running` | Dismiss the modal — dashboard keeps running with all data |
+| `shutdown_keep` | Dashboard process exits, database file is preserved |
+| `shutdown_delete` | Dashboard process exits and database file is deleted |
+
+**Recommended agent usage:** Before sending your final message to the user, call
+`POST /api/lifecycle/prompt` and tell the user to check the dashboard. The human
+operator then clicks one of the three options in the modal. Do not call
+`/api/lifecycle/execute` from agent code.
+
+```bash
+curl -s -X POST http://localhost:5050/api/lifecycle/prompt
+```
 
 ### Export Agent Status as CSV
 
