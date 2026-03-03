@@ -664,6 +664,130 @@ DASHBOARD_HTML = """
       margin-top: var(--ds-space-200);
       text-align: right;
     }
+
+    /* ── Orchestrator Filter Bar ─────────────────────────────── */
+    .orch-filter-bar {
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-150);
+      margin-bottom: var(--ds-space-200);
+      flex-wrap: wrap;
+    }
+    .orch-filter-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--ds-foreground-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .orch-filter-options {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .orch-filter-btn {
+      background: var(--ds-surface-primary);
+      border: 1px solid var(--ds-border-primary);
+      border-radius: var(--ds-radius-small);
+      color: var(--ds-foreground-faint);
+      font-size: 0.8125rem;
+      font-family: var(--ds-font-text);
+      padding: 4px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      line-height: 1.4;
+    }
+    .orch-filter-btn:hover {
+      border-color: var(--ds-foreground-action);
+      color: var(--ds-foreground-action);
+    }
+    .orch-filter-btn.active {
+      background: var(--ds-foreground-action);
+      border-color: var(--ds-foreground-action);
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    /* ── Lifecycle Modal ─────────────────────────────────────── */
+    .lifecycle-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9000;
+      backdrop-filter: blur(2px);
+    }
+    .lifecycle-modal {
+      background: var(--ds-surface-primary);
+      border: 1px solid var(--ds-border-primary);
+      border-radius: var(--ds-radius-large);
+      box-shadow: var(--ds-elevation-high);
+      padding: var(--ds-space-400);
+      max-width: 480px;
+      width: calc(100% - 48px);
+    }
+    .lifecycle-modal-header {
+      display: flex;
+      align-items: center;
+      gap: var(--ds-space-150);
+      margin-bottom: var(--ds-space-200);
+    }
+    .lifecycle-modal-header h2 {
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--ds-foreground-strong);
+    }
+    .lifecycle-modal-icon {
+      font-size: 1.5rem;
+      line-height: 1;
+    }
+    .lifecycle-modal-desc {
+      font-size: 0.875rem;
+      color: var(--ds-foreground-primary);
+      margin-bottom: var(--ds-space-300);
+      line-height: 1.5;
+    }
+    .lifecycle-modal-actions {
+      display: flex;
+      flex-direction: column;
+      gap: var(--ds-space-150);
+    }
+    .lifecycle-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      padding: var(--ds-space-150) var(--ds-space-200);
+      border-radius: var(--ds-radius-medium);
+      border: 1px solid var(--ds-border-primary);
+      background: var(--ds-surface-primary);
+      cursor: pointer;
+      font-family: var(--ds-font-text);
+      text-align: left;
+      transition: all 0.15s;
+      width: 100%;
+    }
+    .lifecycle-btn:hover { box-shadow: var(--ds-elevation-mid); }
+    .lifecycle-btn strong {
+      font-size: 0.9375rem;
+      font-weight: 600;
+    }
+    .lifecycle-btn span {
+      font-size: 0.8125rem;
+      line-height: 1.4;
+    }
+    .lifecycle-btn-keep strong  { color: var(--ds-foreground-action); }
+    .lifecycle-btn-keep:hover   { border-color: var(--ds-foreground-action); background: var(--ds-surface-faint); }
+    .lifecycle-btn-keep span    { color: var(--ds-foreground-faint); }
+    .lifecycle-btn-stop strong  { color: var(--ds-foreground-warning); }
+    .lifecycle-btn-stop:hover   { border-color: var(--ds-foreground-warning); background: var(--ds-surface-faint); }
+    .lifecycle-btn-stop span    { color: var(--ds-foreground-faint); }
+    .lifecycle-btn-delete strong { color: var(--ds-foreground-critical); }
+    .lifecycle-btn-delete:hover  { border-color: var(--ds-foreground-critical); background: var(--ds-surface-faint); }
+    .lifecycle-btn-delete span   { color: var(--ds-foreground-faint); }
   </style>
   <script>
     /* ── Theme Init (runs before render to prevent flash) ─── */
@@ -727,42 +851,14 @@ DASHBOARD_HTML = """
       <button class="refresh-btn" onclick="fetchData()">&#x21bb; Refresh</button>
     </div>
 
-    <!-- Orchestrator Panel -->
-    <div class="orchestrator-panel hidden" id="orchestratorPanel">
-      <div class="orchestrator-header">
-        <div class="orchestrator-title">
-          <span class="orch-icon">&#x1F3AF;</span>
-          <span id="orchName">Orchestrator</span>
-          <span class="status-badge" id="orchBadge"></span>
-        </div>
-        <div style="font-size:0.75rem;color:var(--ds-foreground-faint);">
-          Last update: <span id="orchTimestamp">--</span>
-          &nbsp;·&nbsp;Working time: <span id="orchWorkingTime">0s</span>
-        </div>
-      </div>
-      <div class="orchestrator-body">
-        <div class="orch-field orch-goal" id="orchGoalField">
-          <span class="orch-field-label">Goal</span>
-          <span class="orch-field-value" id="orchGoal">--</span>
-        </div>
-        <div class="orch-field" id="orchTaskField">
-          <span class="orch-field-label">Current Task</span>
-          <span class="orch-field-value" id="orchTask">--</span>
-        </div>
-        <div class="orch-field" id="orchModelField">
-          <span class="orch-field-label">Model</span>
-          <span class="orch-field-value" id="orchModel" style="font-style:italic;">--</span>
-        </div>
-        <div class="orch-field orch-progress" id="orchProgressField">
-          <span class="orch-field-label">Progress</span>
-          <span class="orch-field-value" id="orchProgress">--</span>
-        </div>
-        <div class="orch-field" style="grid-column:1/-1;">
-          <span class="orch-field-label">Sub-Agents</span>
-          <div class="orch-sub-agents" id="orchSubAgents">--</div>
-        </div>
-      </div>
+    <!-- Orchestrator Filter Bar (hidden when <2 orchestrators) -->
+    <div class="orch-filter-bar hidden" id="orchFilterBar">
+      <span class="orch-filter-label">&#x1F3AF; Orchestrator:</span>
+      <div class="orch-filter-options" id="orchFilterOptions"></div>
     </div>
+
+    <!-- Orchestrator Panels Container (populated by JS) -->
+    <div id="orchestratorContainer"></div>
 
     <!-- Agent Cards -->
     <div class="section-heading" style="display:flex;align-items:center;gap:var(--ds-space-200);flex-wrap:wrap;">
@@ -861,12 +957,46 @@ DASHBOARD_HTML = """
     function statusColor(s)   { var c = isDark() ? STATUS_COLORS_DARK : STATUS_COLORS_LIGHT; return c[(s||'').toLowerCase()] || (isDark() ? '#8c909c' : '#656a76'); }
     function statusSurface(s) { var c = isDark() ? STATUS_SURFACES_DARK : STATUS_SURFACES_LIGHT; return c[(s||'').toLowerCase()] || (isDark() ? 'rgba(140,144,156,0.10)' : '#f5f5f6'); }
 
+    /* ── Orchestrator filter state ──────────────────────────── */
+    let selectedOrchestrator = null; // null = "All"
+
+    function setOrchestratorFilter(name) {
+      selectedOrchestrator = name;
+      // Update button active states
+      document.querySelectorAll('.orch-filter-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.orch === (name || ''));
+      });
+      if (window.__lastStatusData) {
+        const { current, max_concurrent_agents, total_duration_seconds, orchestrators } = window.__lastStatusData;
+        renderOrchestrators(current, orchestrators || []);
+        renderCards(current);
+        updateCounters(current, max_concurrent_agents || 0, total_duration_seconds || 0);
+      }
+    }
+
+    function renderOrchestratorFilter(orchestrators) {
+      const bar = document.getElementById('orchFilterBar');
+      const opts = document.getElementById('orchFilterOptions');
+      if (orchestrators.length < 2) { bar.classList.add('hidden'); return; }
+      bar.classList.remove('hidden');
+      let html = `<button class="orch-filter-btn${selectedOrchestrator === null ? ' active' : ''}" data-orch="" onclick="setOrchestratorFilter(null)">All</button>`;
+      orchestrators.forEach(name => {
+        const active = selectedOrchestrator === name ? ' active' : '';
+        html += `<button class="orch-filter-btn${active}" data-orch="${name}" onclick="setOrchestratorFilter('${name.replace(/'/g, "\\'")}')"> ${name}</button>`;
+      });
+      opts.innerHTML = html;
+    }
+
     function fetchData() {
       Promise.all([
         fetch('/api/status').then(r => r.json()),
         fetch('/api/concurrency').then(r => r.json())
       ])
       .then(([statusData, concData]) => {
+        window.__lastStatusData = statusData;
+        const orchestrators = statusData.orchestrators || [];
+        renderOrchestratorFilter(orchestrators);
+        renderOrchestrators(statusData.current, orchestrators);
         renderCards(statusData.current);
         renderLog(statusData.log);
         window.__lastConcData = concData;
@@ -879,10 +1009,22 @@ DASHBOARD_HTML = """
       .catch(err => console.error('Fetch error:', err));
     }
 
+    function filteredAgents(agents) {
+      if (!selectedOrchestrator) return agents;
+      const result = {};
+      for (const [name, info] of Object.entries(agents)) {
+        const isOrch = name === selectedOrchestrator && info.role === 'orchestrator';
+        const belongsTo = info.orchestrator === selectedOrchestrator;
+        if (isOrch || belongsTo) result[name] = info;
+      }
+      return result;
+    }
+
     function updateCounters(agents, maxConcurrent, totalDuration) {
-      const total = Object.keys(agents).length;
-      const working = Object.values(agents).filter(a => a.status === 'working').length;
-      const totalSecs = Object.values(agents).reduce((sum, a) => sum + (a.working_seconds || 0), 0);
+      const view = filteredAgents(agents);
+      const total = Object.keys(view).length;
+      const working = Object.values(view).filter(a => a.status === 'working').length;
+      const totalSecs = Object.values(view).reduce((sum, a) => sum + (a.working_seconds || 0), 0);
       document.getElementById('totalAgents').textContent = total;
       document.getElementById('workingAgents').textContent = working;
       document.getElementById('totalWorkingTime').textContent = fmtDuration(totalSecs);
@@ -967,97 +1109,98 @@ DASHBOARD_HTML = """
       return s + 's';
     }
 
-    function renderOrchestrator(agents) {
-      const panel = document.getElementById('orchestratorPanel');
-      // Find the orchestrator agent (role === 'orchestrator')
-      let orchName = null, orchInfo = null;
-      for (const [name, info] of Object.entries(agents)) {
-        if (info.role === 'orchestrator') { orchName = name; orchInfo = info; break; }
-      }
-      if (!orchName) { panel.classList.add('hidden'); return; }
-      panel.classList.remove('hidden');
-
-      // Status badge
+    function buildOrchPanelHTML(orchName, orchInfo, subAgents) {
       const fg = statusColor(orchInfo.status);
       const bg = statusSurface(orchInfo.status);
       const staleTag = orchInfo.stale ? ' (stale)' : '';
-      const badge = document.getElementById('orchBadge');
-      badge.style.background = bg;
-      badge.style.color = fg;
-      badge.style.borderColor = fg;
-      badge.innerHTML = '<span></span>' + (orchInfo.status || 'idle') + staleTag;
+      const badgeHTML = `<span class="status-badge" style="background:${bg};color:${fg};border-color:${fg}"><span></span>${orchInfo.status || 'idle'}${staleTag}</span>`;
 
-      // Border color matches status
-      panel.style.borderLeftColor = fg;
-
-      document.getElementById('orchName').textContent = orchName;
-      document.getElementById('orchTimestamp').textContent = orchInfo.timestamp || 'never';
-      document.getElementById('orchWorkingTime').textContent = fmtDuration(orchInfo.working_seconds);
-
-      // Goal
-      const goalField = document.getElementById('orchGoalField');
-      if (orchInfo.goal) {
-        goalField.style.display = '';
-        document.getElementById('orchGoal').innerHTML = '<strong>' + orchInfo.goal + '</strong>';
-      } else {
-        goalField.style.display = 'none';
-      }
-
-      // Task
-      const taskField = document.getElementById('orchTaskField');
+      const goalHTML = orchInfo.goal
+        ? `<div class="orch-field orch-goal"><span class="orch-field-label">Goal</span><span class="orch-field-value"><strong>${orchInfo.goal}</strong></span></div>`
+        : '';
+      let taskHTML = '';
       if (orchInfo.task_name) {
-        taskField.style.display = '';
-        if (orchInfo.task_url) {
-          document.getElementById('orchTask').innerHTML = '<a href="' + orchInfo.task_url + '" target="_blank" rel="noopener">' + orchInfo.task_name + '</a>';
-        } else {
-          document.getElementById('orchTask').innerHTML = '<strong>' + orchInfo.task_name + '</strong>';
-        }
-      } else {
-        taskField.style.display = 'none';
+        const link = orchInfo.task_url
+          ? `<a href="${orchInfo.task_url}" target="_blank" rel="noopener">${orchInfo.task_name}</a>`
+          : `<strong>${orchInfo.task_name}</strong>`;
+        taskHTML = `<div class="orch-field"><span class="orch-field-label">Current Task</span><span class="orch-field-value">${link}</span></div>`;
       }
+      const modelHTML = orchInfo.model
+        ? `<div class="orch-field"><span class="orch-field-label">Model</span><span class="orch-field-value" style="font-style:italic;">${orchInfo.model}</span></div>`
+        : '';
+      const progHTML = orchInfo.progress
+        ? `<div class="orch-field orch-progress"><span class="orch-field-label">Progress</span><span class="orch-field-value">${orchInfo.progress}</span></div>`
+        : '';
 
-      // Model
-      const modelField = document.getElementById('orchModelField');
-      if (orchInfo.model) {
-        modelField.style.display = '';
-        document.getElementById('orchModel').textContent = orchInfo.model;
-      } else {
-        modelField.style.display = 'none';
-      }
-
-      // Progress
-      const progField = document.getElementById('orchProgressField');
-      if (orchInfo.progress) {
-        progField.style.display = '';
-        document.getElementById('orchProgress').textContent = orchInfo.progress;
-      } else {
-        progField.style.display = 'none';
-      }
-
-      // Sub-agents summary (exclude orchestrator)
-      const subAgents = Object.entries(agents).filter(([n]) => n !== orchName);
       const total = subAgents.length;
-      const working = subAgents.filter(([,a]) => a.status === 'working').length;
-      const waiting = subAgents.filter(([,a]) => a.status === 'waiting').length;
-      const completed = subAgents.filter(([,a]) => a.status === 'completed').length;
-      const errored = subAgents.filter(([,a]) => a.status === 'error' || a.status === 'blocked').length;
+      const working  = subAgents.filter(([,a]) => a.status === 'working').length;
+      const waiting  = subAgents.filter(([,a]) => a.status === 'waiting').length;
+      const completed= subAgents.filter(([,a]) => a.status === 'completed').length;
+      const errored  = subAgents.filter(([,a]) => a.status === 'error' || a.status === 'blocked').length;
+      let subHTML = `<div class="orch-sub-stat"><span class="count">${total}</span><span class="label">total</span></div>`;
+      subHTML += `<div class="orch-sub-stat"><span class="count" style="color:${statusColor('working')}">${working}</span><span class="label">working</span></div>`;
+      subHTML += `<div class="orch-sub-stat"><span class="count" style="color:${statusColor('waiting')}">${waiting}</span><span class="label">waiting</span></div>`;
+      subHTML += `<div class="orch-sub-stat"><span class="count" style="color:${statusColor('completed')}">${completed}</span><span class="label">completed</span></div>`;
+      if (errored > 0) subHTML += `<div class="orch-sub-stat"><span class="count" style="color:${statusColor('error')}">${errored}</span><span class="label">error/blocked</span></div>`;
+
+      return `
+        <div class="orchestrator-panel" style="border-left-color:${fg};margin-bottom:var(--ds-space-200)">
+          <div class="orchestrator-header">
+            <div class="orchestrator-title">
+              <span class="orch-icon">&#x1F3AF;</span>
+              <span>${orchName}</span>
+              ${badgeHTML}
+            </div>
+            <div style="font-size:0.75rem;color:var(--ds-foreground-faint);">
+              Last update: ${orchInfo.timestamp || 'never'}
+              &nbsp;·&nbsp;Working time: ${fmtDuration(orchInfo.working_seconds)}
+            </div>
+          </div>
+          <div class="orchestrator-body">
+            ${goalHTML}
+            ${taskHTML}
+            ${modelHTML}
+            ${progHTML}
+            <div class="orch-field" style="grid-column:1/-1;">
+              <span class="orch-field-label">Sub-Agents</span>
+              <div class="orch-sub-agents">${subHTML}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderOrchestrators(agents, orchestratorNames) {
+      const container = document.getElementById('orchestratorContainer');
+      // Determine which orchestrators to show
+      const toShow = selectedOrchestrator
+        ? orchestratorNames.filter(n => n === selectedOrchestrator)
+        : orchestratorNames;
+
+      if (toShow.length === 0) { container.innerHTML = ''; return; }
+
       let html = '';
-      html += `<div class="orch-sub-stat"><span class="count">${total}</span><span class="label">total</span></div>`;
-      html += `<div class="orch-sub-stat"><span class="count" style="color:${statusColor('working')}">${working}</span><span class="label">working</span></div>`;
-      html += `<div class="orch-sub-stat"><span class="count" style="color:${statusColor('waiting')}">${waiting}</span><span class="label">waiting</span></div>`;
-      html += `<div class="orch-sub-stat"><span class="count" style="color:${statusColor('completed')}">${completed}</span><span class="label">completed</span></div>`;
-      if (errored > 0) html += `<div class="orch-sub-stat"><span class="count" style="color:${statusColor('error')}">${errored}</span><span class="label">error/blocked</span></div>`;
-      document.getElementById('orchSubAgents').innerHTML = html;
+      toShow.forEach(orchName => {
+        const orchInfo = agents[orchName];
+        if (!orchInfo) return;
+        // Sub-agents: agents whose orchestrator field matches this orch, or all non-orch agents when only 1 orch
+        let subAgents;
+        if (orchestratorNames.length === 1) {
+          subAgents = Object.entries(agents).filter(([n, info]) => n !== orchName && info.role !== 'orchestrator');
+        } else {
+          subAgents = Object.entries(agents).filter(([n, info]) => info.orchestrator === orchName && n !== orchName);
+        }
+        html += buildOrchPanelHTML(orchName, orchInfo, subAgents);
+      });
+      container.innerHTML = html;
     }
 
     function renderCards(agents) {
       lastAgentsData = agents;
-      // Render orchestrator panel first
-      renderOrchestrator(agents);
       const grid = document.getElementById('agentCards');
       grid.innerHTML = '';
-      // Exclude orchestrator from regular cards
-      const entries = Object.entries(agents).filter(([, info]) => info.role !== 'orchestrator');
+      // Apply orchestrator filter, then exclude orchestrators from regular cards
+      const view = filteredAgents(agents);
+      const entries = Object.entries(view).filter(([, info]) => info.role !== 'orchestrator');
       if (entries.length === 0) {
         grid.innerHTML = '<div class="no-agents">No agents registered yet. Agents will appear when they post status updates.</div>';
         return;
@@ -1112,6 +1255,50 @@ DASHBOARD_HTML = """
           <td><span class="status-badge" style="background:${bg};color:${fg};border-color:${fg}">${r.status}</span></td>
         </tr>`;
       });
+    }
+
+    /* ── Lifecycle management ─────────────────────────────────── */
+    let _lifecycleShown = false;
+
+    function pollLifecycle() {
+      fetch('/api/lifecycle/status')
+        .then(r => r.json())
+        .then(data => {
+          if (data.prompt && !_lifecycleShown) showLifecycleModal();
+          else if (!data.prompt && _lifecycleShown) hideLifecycleModal();
+        })
+        .catch(() => {});
+    }
+
+    function showLifecycleModal() {
+      _lifecycleShown = true;
+      document.getElementById('lifecycleOverlay').classList.remove('hidden');
+    }
+
+    function hideLifecycleModal() {
+      _lifecycleShown = false;
+      document.getElementById('lifecycleOverlay').classList.add('hidden');
+    }
+
+    function executeLifecycle(mode) {
+      hideLifecycleModal();
+      fetch('/api/lifecycle/execute?mode=' + mode, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          if (mode === 'keep_running') return; // stay on page
+          if (mode === 'shutdown_keep' || mode === 'shutdown_delete') {
+            document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui;flex-direction:column;gap:16px;color:#3b3d45;">' +
+              '<span style="font-size:2rem;">&#x2705;</span>' +
+              '<strong style="font-size:1.25rem;">Dashboard has shut down.</strong>' +
+              (mode === 'shutdown_delete' ? '<span>All data has been deleted.</span>' : '<span>Your data is preserved on disk.</span>') +
+              '</div>';
+          }
+        })
+        .catch(() => {
+          if (mode !== 'keep_running') {
+            document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui;color:#3b3d45;"><strong>Dashboard stopped.</strong></div>';
+          }
+        });
     }
 
     function renderConcurrencyChart(data) {
@@ -1266,7 +1453,35 @@ DASHBOARD_HTML = """
 
     fetchData();
     setInterval(fetchData, 5000);
+    setInterval(pollLifecycle, 4000);
   </script>
+
+  <!-- ── Lifecycle Modal ──────────────────────────────────────── -->
+  <div class="lifecycle-overlay hidden" id="lifecycleOverlay">
+    <div class="lifecycle-modal">
+      <div class="lifecycle-modal-header">
+        <span class="lifecycle-modal-icon">&#x26A1;</span>
+        <h2>Session Ending</h2>
+      </div>
+      <p class="lifecycle-modal-desc">
+        Your AI session is closing. What should happen to this dashboard?
+      </p>
+      <div class="lifecycle-modal-actions">
+        <button class="lifecycle-btn lifecycle-btn-keep" onclick="executeLifecycle('keep_running')">
+          <strong>Keep Running</strong>
+          <span>Dashboard stays alive with all data intact</span>
+        </button>
+        <button class="lifecycle-btn lifecycle-btn-stop" onclick="executeLifecycle('shutdown_keep')">
+          <strong>Shutdown &amp; Keep Data</strong>
+          <span>Stop the dashboard — data remains on disk for next time</span>
+        </button>
+        <button class="lifecycle-btn lifecycle-btn-delete" onclick="executeLifecycle('shutdown_delete')">
+          <strong>Shutdown &amp; Delete Data</strong>
+          <span>Stop the dashboard and permanently remove all stored data</span>
+        </button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
 """
